@@ -1,9 +1,46 @@
-:root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+@import "tailwindcss";
+@import "uniwind";
+
+@theme {
+  --font-sans: "Inter_400Regular";
+  --font-sans-medium: "Inter_500Medium";
+  --font-sans-semibold: "Inter_600SemiBold";
+}
+
+@layer theme {
+  :root {
+    @variant light {
+      --color-background: #f5f7ff;
+      --color-surface: #ffffff;
+      --color-surface-muted: #eef0fa;
+      --color-foreground: #111827;
+      --color-foreground-muted: #626b7d;
+      --color-border: #dde1ee;
+      --color-border-strong: #778098;
+      --color-accent: #5b5bd6;
+      --color-accent-pressed: #4848b8;
+      --color-accent-soft: #ececff;
+      --color-on-accent: #ffffff;
+      --color-danger: #c43d4f;
+      --color-danger-soft: #feeff1;
+      --color-on-danger: #ffffff;
+    }
+
+    @variant dark {
+      --color-background: #0b1020;
+      --color-surface: #12182a;
+      --color-surface-muted: #1a2238;
+      --color-foreground: #f5f7ff;
+      --color-foreground-muted: #aab3c5;
+      --color-border: #2a344d;
+      --color-border-strong: #6a7695;
+      --color-accent: #9896ff;
+      --color-accent-pressed: #8583e8;
+      --color-accent-soft: #25264a;
+      --color-on-accent: #0b1020;
+      --color-danger: #ff7a8a;
+      --color-danger-soft: #3a1d29;
+      --color-on-danger: #1a0810;
+    }
+  }
 }

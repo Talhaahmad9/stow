@@ -56,11 +56,13 @@ export default function Index() {
         </View>
 
         {/* Flexible content area */}
-        <View className="flex-1 justify-center">
+        <View className="flex-1">
           {loading ? (
-            <Text className="font-sans text-foreground-muted">Loading…</Text>
+            <View className="flex-1 items-start justify-center">
+              <Text className="font-sans text-foreground-muted">Loading…</Text>
+            </View>
           ) : error ? (
-            <View>
+            <View className="flex-1 justify-center">
               <Text className="font-sans text-danger">{error}</Text>
               <Pressable
                 onPress={() => void load(focusGeneration.current)}
@@ -74,7 +76,7 @@ export default function Index() {
               </Pressable>
             </View>
           ) : captures.length === 0 ? (
-            <View className="items-start">
+            <View className="flex-1 items-start justify-center">
               <Text className="font-sans-semibold text-xl text-foreground mb-2">
                 Nothing stowed yet
               </Text>
@@ -89,10 +91,19 @@ export default function Index() {
             <FlatList<Capture>
               data={captures}
               keyExtractor={(item) => String(item.id)}
+              ItemSeparatorComponent={() => (
+                <View className="border-t border-border" />
+              )}
               renderItem={({ item }) => (
-                <View className="mb-3 rounded-xl border border-border bg-surface p-4">
-                  <Text className="font-sans text-foreground">{item.text}</Text>
-                  <Text className="mt-1 font-sans text-sm text-foreground-muted">
+                <View className="py-5">
+                  <Text
+                    className="font-sans-medium text-lg text-foreground"
+                    numberOfLines={3}
+                    ellipsizeMode="tail"
+                  >
+                    {item.text}
+                  </Text>
+                  <Text className="mt-1.5 font-sans text-base text-foreground-muted">
                     Unsorted
                   </Text>
                 </View>

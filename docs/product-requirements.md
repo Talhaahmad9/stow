@@ -99,7 +99,22 @@ Dependency rule for the first slice:
 - **Primary action:** Exactly one bottom-reachable primary `+ New capture` button, nearly full width, approximately 60–64dp tall, rounded, using `bg-accent`, `text-on-accent`, and `active:bg-accent-pressed`. The button sits above safe-area insets and uses an accessible `Pressable` with a descriptive label.
 - **Theming:** Automatic semantic light/dark styling only; do not hardcode hex colors or add new theme tokens.
 - **Platform chrome:** System status icons and gesture indicators are part of the OS and not part of the app design.
-- **Preserved:** The populated Inbox card layout and the capture-modal visual design remain `TBD` and are not changed by this approval.
+- **Preserved:** The capture-modal visual design remains `TBD`. The populated Inbox is now governed by the Approved Populated Inbox v1 section below.
+
+## Approved Populated Inbox v1
+
+- **Header:** Continue using the existing large left-aligned `Inbox` header and its divider.
+- **List Style:** Flat editorial list. No card backgrounds, rounded capture containers, shadows, badges, icons, thumbnails, or controls.
+- **Row Content:**
+  - **Capture Text:** Displayed first. Uses `text-foreground` semantic token, Inter Medium 500 (`font-sans-medium`), approximately 18sp (`text-lg`). Natural wrapping allowed up to a maximum of three visible lines. Trailing ellipsis (`numberOfLines={3}`, `ellipsizeMode="tail"`) when text exceeds three lines. Do not shrink text to fit.
+  - **Metadata:** `Unsorted` displayed beneath capture text. Uses `text-foreground-muted` semantic token, Inter Regular 400 (`font-sans`), approximately 15–16sp (`text-base`). Visibly secondary with a small vertical gap beneath the capture.
+- **Row Layout:** Comfortable vertical padding; rows grow naturally when capture text wraps.
+- **Separators:** Subtle full-content-width semantic `border` separator only between rows (using `ItemSeparatorComponent`). No separator above the first row or below the final row.
+- **Screen Padding:** Approximately 24dp screen-side padding (matches Approved Empty Inbox).
+- **Positioning:** The list begins below the header and scrolls when captures exceed the available area.
+- **Bottom Action:** Remains outside the list, above safe-area inset, exactly preserving the manually edited button text.
+- **Theming:** Automatic semantic light/dark styling.
+- **Implementation:** Uses React Native `FlatList` with `ItemSeparatorComponent` and variable row heights (no `getItemLayout`).
 
 ## Visual foundation
 

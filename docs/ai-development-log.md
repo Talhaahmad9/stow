@@ -1,5 +1,48 @@
 # AI Development Log
 
+### 2026-09-12 — Locked Populated Inbox v1
+
+- **Date:** 2026-09-12
+- **Milestone:** Implement the locked populated Inbox design.
+- **Requested scope:** Visual refinement of the populated state into a flat editorial list, preserving existing functionality and the bottom action area.
+- **Actual files changed:**
+  - `docs/product-requirements.md`: Added `Approved Populated Inbox v1` section.
+  - `src/app/index.tsx`: Refactored `FlatList` and row design.
+  - `docs/ai-development-log.md`: This entry.
+- **Dependencies:** Unchanged.
+- **Decisions and reasoning:**
+  - Used `ItemSeparatorComponent` in `FlatList` to ensure dividers only appear between items, as requested.
+  - Rows use variable heights to accommodate natural text wrapping; `getItemLayout` was omitted for this reason.
+  - `numberOfLines={3}` and `ellipsizeMode="tail"` were used for the capture preview to meet the three-line constraint.
+  - Applied semantic tokens (`text-foreground`, `text-foreground-muted`, `border`) and Inter weights (`font-sans-medium`, `font-sans`) as per the visual contract.
+  - Preserved the bottom action area exactly as requested, including the `font-sans-lg` class.
+- **Documentation consulted:** Expo SDK 57, React Native 0.86 `FlatList` and `Text`, Uniwind class names.
+- **Verification:**
+  - `npx tsc --noEmit` passed.
+  - `git diff --check` passed.
+  - Physical Android Expo Go dark-mode verification confirmed:
+    - Header and header divider rendered correctly.
+    - Two single-line populated rows displayed without wrapping.
+    - Semantic dark colors applied accurately.
+    - Metadata hierarchy (capture text and `Unsorted` label) visibly distinct.
+    - One between-row separator present; no separator above first row or below final row.
+    - Bottom action area rendering preserved.
+  - Physical Android Expo Go verification completed on 2026-09-13:
+    - Long captures display a maximum of three lines with no text shrinkage.
+    - Content beyond the third line receives a trailing ellipsis.
+    - Variable-height rows expand correctly around longer text.
+    - Row separators reposition correctly as row height varies.
+    - A sufficiently populated Inbox scrolls smoothly.
+    - The header remains outside the scrolling list area.
+    - The bottom New Capture action remains fixed, visible, and reachable during scroll.
+    - The final list row has no separator beneath it.
+    - Light-mode semantic colors applied correctly: background, foreground, muted foreground, border, and accent colors all render as designed.
+    - Light status-bar region visually matches the screen.
+    - Text remains readable in light mode.
+- **Mistakes and corrections:** Stale TBD wording in `Approved Empty Inbox v1` ("Preserved" statement) found during review; corrected in product-requirements.md to reflect that populated Inbox design is now locked.
+- **Technical debt / warnings:** The approved Populated Inbox v1 device-verification checklist is complete on Android. iOS visual verification remains future platform coverage.
+- **Learning notes:** `ItemSeparatorComponent` is cleaner than conditional borders within `renderItem` for lists that shouldn't have top/bottom dividers.
+
 ### 2026-09-12 — Visible Inbox and text-capture slice
 
 - **Date and requested scope:** 2026-09-12; implement the first visible Stow

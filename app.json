@@ -35,7 +35,8 @@
             "image": "./assets/images/stow-splash-dark.png"
           }
         }
-      ]
+      ],
+      "expo-sqlite"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -1,5 +1,57 @@
 # AI Development Log
 
+### 2026-09-12 — Visible Inbox and text-capture slice
+
+- **Date and requested scope:** 2026-09-12; implement the first visible Stow
+  slice: active-capture Inbox, Expo Router New Capture modal, text-only save,
+  newest-first refresh, and SQLite persistence across app reloads.
+- **Files changed for this slice:** `docs/product-requirements.md`,
+  `docs/ai-development-log.md`, `src/app/_layout.tsx`, `src/app/index.tsx`,
+  `src/app/capture.tsx`, and `src/components/app-screen.tsx`. Existing
+  uncommitted persistence files were preserved; no repository or schema
+  changes were made.
+- **Dependencies:** Unchanged for this visible slice. The existing
+  `expo-sqlite@~57.0.3` persistence dependency and prior lockfile/config
+  changes were preserved; no packages were installed, removed, or upgraded.
+- **Documentation consulted:** Expo Router SDK 57, Expo Router modals, Expo
+  SQLite SDK 57, Expo StatusBar SDK 57, Expo safe-area-context SDK 57, React
+  Native 0.86 `TextInput`, `FlatList`, and `Pressable`, and Uniwind
+  `withUniwind`, `TextInput`, `FlatList`, and `Pressable` documentation.
+- **Behavior:** The Inbox explicitly handles loading, error/retry, empty, and
+  populated states; it lists active captures newest-first and labels each
+  capture `Unsorted`. New capture opens `/capture` as a dedicated modal.
+  Whitespace-only drafts cannot be saved; successful text saves create an
+  active `Unsorted` capture, dismiss the modal, and refetch the Inbox. Cancel,
+  system back, and failed saves do not create a capture or discard a failed
+  draft. No draft retention or discard confirmation was implemented.
+- **Safe areas and status bar:** The final `AppScreen` uses a core React Native
+  outer `View` for the semantic background and an inner
+  `react-native-safe-area-context` `SafeAreaView` for inset padding. The root
+  renders Expo `StatusBar` with `style="auto"`.
+- **Startup sequencing:** Fonts resolve first; `SQLiteProvider.onInit` opens
+  and migrates the database; only its child navigation component then mounts,
+  hides the splash, and renders the Router stack. Font errors still allow the
+  flow to continue so the splash cannot remain stuck.
+- **Verification performed:** TypeScript and lint checks passed during feature
+  implementation. Lockfile recovery later parsed and compared every record
+  against `HEAD`: 663 committed records became 665, with only the root,
+  `await-lock`, and `expo-sqlite` records differing or new.
+- **Device verification:** Performed on Android Expo Go by the product owner:
+  the Inbox populated, a text capture was created, the app was
+  restarted/reloaded, and the capture remained stored as `Unsorted`. A
+  screenshot confirms the populated Inbox and bottom action.
+- **Exclusions:** No editing, classification controls, archive, delete,
+  reminders, images, compression, autosave, discard confirmation, or network
+  features were added.
+- **Mistakes/corrections:** The first dependency-cleanup attempt accidentally
+  reduced the lockfile to three package records and therefore failed. Recovery
+  restored the complete committed dependency tree and added only the approved
+  root `expo-sqlite` dependency plus `await-lock` and `expo-sqlite` package
+  records. Earlier UI corrections also removed unchecked casts and fixed
+  TextInput `accent-` color bindings.
+- **Next step:** Android Expo Go persistence verification is complete; proceed
+  only with the next separately approved product slice.
+
 This log records factual AI-assisted work on Stow. It is not a substitute for
 the Git history: it explains scope, reasoning, documentation, verification,
 and corrections. Dates that cannot be established from the repository are
@@ -211,6 +263,100 @@ Copy this structure for each AI-assisted milestone:
 - **Platform implications:** None; runtime platform behavior is unchanged.
 - **Technical debt and next step:** Continue recording meaningful
   implementation or documentation steps in this log.
+
+### 2026-09-12 — Text-capture persistence foundation (first slice)
+
+- **Date:** 2026-09-12
+- **Milestone:** Implement on-device persistence foundation for the approved
+  first text-capture slice and record the decision and verification steps.
+- **Requested scope:** Add SQLite-backed persistence (no UI capture or Inbox
+  implementation) and wire the Router stack to `SQLiteProvider`. Install only
+  `expo-sqlite` and record reasoning for avoiding an ORM.
+- **Actual files changed:**
+  - `app.json`
+  - `package.json`
+  - `package-lock.json`
+  - `docs/product-requirements.md` (added the approved first capture slice,
+    invariants, persistence decision, and dependency rule)
+  - `docs/ai-development-log.md` (this milestone entry and corrections)
+  - `src/app/_layout.tsx` (wrapped Router `Stack` with `SQLiteProvider` and
+    passed the migration `onInit`)
+  - `src/data/database.ts` (database migration + PRAGMA setup)
+  - `src/features/captures/capture.ts` (domain types, `CaptureRow`, and mapper)
+  - `src/features/captures/capture-repository.ts` (repository: `createTextCapture`,
+    `listActiveCaptures`)
+- **Dependencies:** Added `expo-sqlite` via `npx expo install expo-sqlite`.
+  - Version installed: `expo-sqlite@~57.0.3` (Expo SDK 57 compatible).
+  - The installation also added the `expo-sqlite` config-plugin entry to `app.json` and lockfile entries in `package-lock.json` (default config-plugin; no advanced options enabled).
+- **Decisions and reasoning:**
+  - Use `expo-sqlite` directly (no ORM) because the first slice requires a
+    single, small table and a minimal repository surface; an ORM would add
+    unnecessary complexity and native build surface for now.
+  - Keep schema statements static in migration SQL. Use parameter binding for
+    all user-provided values in repository functions.
+- **Schema and migration (version 1):**
+  - Database file: `stow.db` (opened via `SQLiteProvider` in app layout).
+  - On init (`onInit`): enable `PRAGMA foreign_keys = ON`, `PRAGMA journal_mode = WAL`.
+  - Read `PRAGMA user_version` and only apply missing migrations.
+  - Version-1 migration creates table `captures` with columns:
+    - `id INTEGER PRIMARY KEY NOT NULL`
+    - `text TEXT NULL`
+    - `classification TEXT NOT NULL DEFAULT 'unsorted'`
+    - `workflow_state TEXT NOT NULL DEFAULT 'active'`
+    - `created_at INTEGER NOT NULL`
+    - `updated_at INTEGER NOT NULL`
+    - `CHECK` constraints to enforce allowed `classification` and `workflow_state` values.
+  - Index `captures_workflow_created_idx` on `(workflow_state, created_at)`
+    (suitable for listing active captures newest-first).
+  - Migration sets `PRAGMA user_version = 1` only after successful creation.
+- **Repository functions implemented:**
+  - `createTextCapture(db, inputText)`
+    - Trims whitespace, rejects empty/whitespace-only text, inserts a new row
+      with `classification='unsorted'` and `workflow_state='active'`.
+    - Uses parameter binding (`?` parameters) and one timestamp value for
+      both `created_at` and `updated_at`.
+    - Returns the created `Capture` mapped into the typed domain model.
+  - `listActiveCaptures(db)`
+    - Returns only captures where `workflow_state = 'active'` ordered by
+      `created_at DESC, id DESC` (deterministic newest-first ordering).
+- **Documentation consulted:**
+  - Expo SDK 57 `expo-sqlite` docs: migrations, `SQLiteProvider`, `onInit`,
+    `PRAGMA user_version`, WAL, parameter binding, and transactions.
+  - Repository-local docs and the engineering constitution / product
+    requirements in `docs/` for approved behavior.
+- **Verification performed (local):**
+  - Ran `npx expo install expo-sqlite` and confirmed `expo-sqlite@~57.0.3` added to `package.json`/`package-lock.json`.
+  - Ran `npx tsc --noEmit` (TypeScript check) — passed with no type errors.
+  - Ran `git diff --check` — no whitespace errors reported.
+  - Inspected the working-tree diff to confirm only the intended files changed
+    and that `src/app/index.tsx` is unchanged.
+- **Pending device verification (manual steps):**
+  1. Reload the already-running Expo Go session on port `8081`.
+  2. Confirm the palette / index route still renders without a database or
+     startup error.
+  3. Reload a second time to exercise idempotent initialization.
+  4. Optionally use the built-in `expo-sqlite` DevTools inspector (Shift+M
+     in Expo CLI) to verify the `captures` table and rows.
+
+- **Mistakes and corrections:**
+  - The initial report omitted `app.json`, `package.json`, and `package-lock.json` from the exact changed-file list; those files were modified by the `expo-sqlite` installation and are now listed above.
+  - The review discovered unnecessary `any` casts in `src/features/captures/*` even though the installed `expo-sqlite` API provides typed run results and generic row-returning helpers; the code was corrected to use a typed `CaptureRow` and generic `getFirstAsync<CaptureRow>`/`getAllAsync<CaptureRow>`. `runAsync()` returns a typed result exposed by the library (including `lastInsertRowId`) and does not require a manual `as` assertion.
+
+- **Technical debt / warnings:**
+  - The current startup sequencing keeps font loading and `SplashScreen` logic in `_layout.tsx`. This may hide the native splash before the non-Suspense `SQLiteProvider` finishes opening and migrating the database, since the font-loading effect can call `SplashScreen.hideAsync()` once fonts load. As a result, a brief blank frame is theoretically possible while the provider initializes. Do not redesign splash/database initialization in this correction pass; revisit when the navigation/loading shell is implemented.
+- **Learning notes:** `expo-sqlite`'s `SQLiteProvider` + `onInit` provides a
+  convenient, lifecycle-aware place to run idempotent migrations before the
+  app renders. `PRAGMA user_version` is the recommended lightweight versioning
+  mechanism. Use WAL for better write performance as recommended by Expo docs.
+- **Platform implications:** Works on the configured Expo SDK 57 and React
+  Native 0.86; SQLCipher and other build-time options are available but not
+  used here (SQLCipher is not supported on Expo Go).
+- **Future image-compression note:** When images are added later, images
+  must be compressed before permanent storage; compression library/quality
+  settings remain `TBD`.
+- **Next step:** Build the Inbox and capture modal UI that uses the newly
+  added repository functions to create and list captures (this will be the
+  next requested slice).
 
 ### 2026-09-12 — Quiet Indigo semantic color system
 

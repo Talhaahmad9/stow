@@ -1,72 +1,120 @@
-import { Text, View } from "react-native";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useSQLiteContext } from "expo-sqlite";
+import { useCallback, useRef, useState } from "react";
+import { FlatList, Pressable, Text, View } from "react-native";
+import { AppScreen } from "../components/app-screen";
+import type { Capture } from "../features/captures/capture";
+import { listActiveCaptures } from "../features/captures/capture-repository";
 
 export default function Index() {
+  const db = useSQLiteContext();
+  const router = useRouter();
+  const [captures, setCaptures] = useState<Capture[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const focusGeneration = useRef(0);
+
+  const load = useCallback(
+    async (generation: number) => {
+      if (focusGeneration.current !== generation) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const rows = await listActiveCaptures(db);
+        if (focusGeneration.current !== generation) return;
+        setCaptures(rows);
+      } catch {
+        if (focusGeneration.current !== generation) return;
+        setError("Failed to load captures.");
+      } finally {
+        if (focusGeneration.current === generation) setLoading(false);
+      }
+    },
+    [db],
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      const generation = focusGeneration.current + 1;
+      focusGeneration.current = generation;
+      void load(generation);
+      return () => {
+        focusGeneration.current += 1;
+      };
+    }, [load]),
+  );
+
   return (
-    <View className="flex-1 bg-background px-5 py-8">
-      <Text className="font-sans-semibold text-2xl text-foreground">
-        Quiet Indigo palette
-      </Text>
-      <Text className="mt-1 font-sans text-sm text-foreground-muted">
-        Temporary semantic color verification
-      </Text>
-
-      <View className="mt-6 gap-3">
-        <View className="rounded-2xl border border-border bg-surface p-4">
-          <Text className="font-sans-semibold text-base text-foreground">
-            Surface
+    <AppScreen>
+      <View className="flex-1 px-6 py-4">
+        {/* Header */}
+        <View className="pb-4">
+          <Text className="font-sans-semibold text-2xl text-foreground">
+            Inbox
           </Text>
-          <Text className="mt-1 font-sans text-sm text-foreground-muted">
-            Regular surface with primary and secondary text.
-          </Text>
+          <View className="mt-3 border-t border-border" />
         </View>
 
-        <View className="rounded-2xl border border-border-strong bg-surface-muted p-4">
-          <Text className="font-sans-medium text-base text-foreground">
-            Muted surface
-          </Text>
-          <Text className="mt-1 font-sans text-sm text-foreground-muted">
-            Strong border and muted surface pairing.
-          </Text>
+        {/* Flexible content area */}
+        <View className="flex-1 justify-center">
+          {loading ? (
+            <Text className="font-sans text-foreground-muted">Loading…</Text>
+          ) : error ? (
+            <View>
+              <Text className="font-sans text-danger">{error}</Text>
+              <Pressable
+                onPress={() => void load(focusGeneration.current)}
+                accessibilityRole="button"
+                accessibilityLabel="Try again"
+                className="mt-3 rounded-lg border border-border-strong px-4 py-3 active:bg-surface-muted"
+              >
+                <Text className="font-sans-medium text-foreground">
+                  Try again
+                </Text>
+              </Pressable>
+            </View>
+          ) : captures.length === 0 ? (
+            <View className="items-start">
+              <Text className="font-sans-semibold text-xl text-foreground mb-2">
+                Nothing stowed yet
+              </Text>
+              <Text className="font-sans text-foreground-muted">
+                Capture a thought now.
+              </Text>
+              <Text className="font-sans text-foreground-muted mt-1">
+                You can sort it later.
+              </Text>
+            </View>
+          ) : (
+            <FlatList<Capture>
+              data={captures}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <View className="mb-3 rounded-xl border border-border bg-surface p-4">
+                  <Text className="font-sans text-foreground">{item.text}</Text>
+                  <Text className="mt-1 font-sans text-sm text-foreground-muted">
+                    Unsorted
+                  </Text>
+                </View>
+              )}
+            />
+          )}
         </View>
 
-        <View className="flex-row gap-3">
-          <View className="flex-1 rounded-2xl bg-accent p-4">
-            <Text className="font-sans-semibold text-base text-on-accent">
-              Accent
+        {/* Bottom action area: single primary action above safe area */}
+        <View className="pt-4">
+          <Pressable
+            onPress={() => router.push("/capture")}
+            accessibilityRole="button"
+            accessibilityLabel="New capture"
+            className="w-full h-16 rounded-2xl bg-accent items-center justify-center active:bg-accent-pressed shadow-md"
+          >
+            <Text className="font-sans-lg text-on-accent text-lg font-bold">
+              + New capture
             </Text>
-            <Text className="mt-1 font-sans text-sm text-on-accent">
-              On-accent
-            </Text>
-          </View>
-          <View className="flex-1 rounded-2xl bg-accent-soft p-4">
-            <Text className="font-sans-medium text-base text-accent">
-              Accent soft
-            </Text>
-            <Text className="mt-1 font-sans text-sm text-accent">
-              Accent text
-            </Text>
-          </View>
-        </View>
-
-        <View className="flex-row gap-3">
-          <View className="flex-1 rounded-2xl bg-danger p-4">
-            <Text className="font-sans-semibold text-base text-on-danger">
-              Danger
-            </Text>
-            <Text className="mt-1 font-sans text-sm text-on-danger">
-              On-danger
-            </Text>
-          </View>
-          <View className="flex-1 rounded-2xl bg-danger-soft p-4">
-            <Text className="font-sans-medium text-base text-danger">
-              Danger soft
-            </Text>
-            <Text className="mt-1 font-sans text-sm text-danger">
-              Danger text
-            </Text>
-          </View>
+          </Pressable>
         </View>
       </View>
-    </View>
+    </AppScreen>
   );
 }

@@ -30,6 +30,77 @@ loss created when a person must interrupt an idea to organize it.
 Exact retention, trash, and reminder scheduling details are `TBD` until a
 specific interaction is approved.
 
+## First capture slice (approved)
+
+- A user can create a text capture.
+- Leading and trailing whitespace is removed before persistence.
+- Empty or whitespace-only text cannot be saved during the text-only slice.
+- A saved capture defaults to `Unsorted` classification.
+- A saved capture defaults to the active workflow state.
+- Active captures are listed newest-first.
+- Captures persist across app restarts using an on-device SQLite database.
+
+Permanent content invariant (applies to all future capture slices):
+
+- A capture must contain non-empty text, at least one image, or both.
+- Text is optional when an image exists.
+- Images are optional when non-empty text exists.
+- A capture containing neither text nor images is invalid and must be rejected.
+- The first slice implemented now supports text only; camera and gallery
+  support are future steps.
+
+Image handling (future):
+
+- When image support is implemented, camera/gallery images must go through an
+  image-compression step before permanent app storage.
+- The compression library, dimensions, quality, formats, metadata policy, and
+  original-image retention behavior remain `TBD` and must be approved before
+  implementation. Do not add or install an image compression library now.
+
+Persistence decision (approved):
+
+- Structured capture metadata uses on-device SQLite (`stow.db`).
+- Future image files will live in app-controlled file storage; SQLite will
+  store image metadata and file references rather than embedding images in
+  capture rows.
+- No cloud or network persistence is introduced in the MVP.
+
+Dependency rule for the first slice:
+
+- Only install `expo-sqlite` (Expo SDK 57 compatible) for this slice using
+  `npx expo install expo-sqlite`. Do not add an ORM, schema library, or any
+  other persistence dependency for the first slice. The decision to avoid an
+  ORM is intentional: one small table and a narrow repository surface do not
+  justify a heavy abstraction. Record that reasoning in the AI development
+  log when implementing.
+
+## Visible Inbox + New Capture (approved visible slice)
+
+- The initial route is the active-capture Inbox.
+- The Inbox lists active captures newest-first.
+- An empty Inbox displays a helpful empty state.
+- “New capture” opens a dedicated Expo Router modal route.
+- The first modal supports text only.
+- Save is unavailable for empty or whitespace-only text.
+- Saving creates an `Unsorted`, active capture, dismisses the modal, and refreshes the Inbox.
+- Cancel or system back leaves without creating a capture.
+- Unsaved-draft retention and discard-confirmation behavior remain `TBD`; do not implement either now.
+- Editing, classification changes, archive, delete, reminders, images, and image compression are outside this slice.
+- The UI must support automatic light/dark appearance and safe areas.
+
+## Approved Empty Inbox v1
+
+- **Header:** Large left-aligned `Inbox` title in a distinct header region with a subtle semantic `border` divider below the header.
+- **Spacing:** Approximately 24dp horizontal padding across the screen (use existing semantic spacing utilities).
+- **Empty state copy:**
+  - Headline: `Nothing stowed yet`
+  - Supporting lines: `Capture a thought now.` and `You can sort it later.`
+- **Layout:** Empty-state content is left aligned and presented as a two-line supporting block; the group sits near the visual middle of the available content area using flexible layout (no absolute positioning).
+- **Primary action:** Exactly one bottom-reachable primary `+ New capture` button, nearly full width, approximately 60–64dp tall, rounded, using `bg-accent`, `text-on-accent`, and `active:bg-accent-pressed`. The button sits above safe-area insets and uses an accessible `Pressable` with a descriptive label.
+- **Theming:** Automatic semantic light/dark styling only; do not hardcode hex colors or add new theme tokens.
+- **Platform chrome:** System status icons and gesture indicators are part of the OS and not part of the app design.
+- **Preserved:** The populated Inbox card layout and the capture-modal visual design remain `TBD` and are not changed by this approval.
+
 ## Visual foundation
 
 The visual direction is locked as follows:

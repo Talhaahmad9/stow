@@ -6,7 +6,7 @@ import { Image } from "expo-image";
 import { AppScreen } from "../components/app-screen";
 import { StowIcon } from "../components/ui/stow-icon";
 import { useCssVariables } from "../hooks/useCssVariables";
-import type { Capture } from "../features/captures/capture";
+import { classificationLabel, type Capture } from "../features/captures/capture";
 import { listActiveCaptures } from "../features/captures/capture-repository";
 import { formatReminderTime } from "../features/reminders/reminder-utils";
 
@@ -55,7 +55,7 @@ function CaptureRow({ item, onEdit }: { item: Capture; onEdit: (id: number) => v
           {item.text}
         </Text>
         <Text className="mt-1.5 font-sans text-base text-foreground-muted">
-          Unsorted
+          {classificationLabel(item.classification)}
         </Text>
         {item.reminderAt !== null && (
           <ReminderLine reminderAt={item.reminderAt} />
@@ -105,7 +105,7 @@ function CaptureRow({ item, onEdit }: { item: Capture; onEdit: (id: number) => v
             {item.text}
           </Text>
           <Text className="mt-1.5 font-sans text-base text-foreground-muted">
-            Unsorted{"\u00a0\u00b7\u00a0"}{imageLabel}
+            {classificationLabel(item.classification)}{"\u00a0\u00b7\u00a0"}{imageLabel}
           </Text>
           {item.reminderAt !== null && (
             <ReminderLine reminderAt={item.reminderAt} />
@@ -151,7 +151,7 @@ function CaptureRow({ item, onEdit }: { item: Capture; onEdit: (id: number) => v
           ))}
         </View>
         <Text className="mt-3 font-sans text-base text-foreground-muted">
-          Unsorted{"\u00a0\u00b7\u00a0"}{imageLabel}
+          {classificationLabel(item.classification)}{"\u00a0\u00b7\u00a0"}{imageLabel}
         </Text>
         {item.reminderAt !== null && (
           <ReminderLine reminderAt={item.reminderAt} />

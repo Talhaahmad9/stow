@@ -96,10 +96,10 @@ Dependency rule for the first slice:
 - "New capture" opens a dedicated Expo Router modal route with a full-featured composer.
 - The composer supports text with optional images, reminders, and draft management.
 - Save is unavailable when both text and images are empty.
-- Saving creates an `Unsorted`, active capture, dismisses the modal, and refreshes the Inbox.
+- Saving creates an active capture that defaults to `Unsorted` unless an optional creation-time classification was selected, dismisses the modal, and refreshes the Inbox.
 - Cancel or system back with unsaved content shows a discard confirmation.
 - An untouched draft closes immediately without confirmation.
-- Classification changes and archive remain outside this slice.
+- Archive remains outside this slice. Capture Classification v1 is specified below.
 - The UI must support automatic light/dark appearance and safe areas.
 
 ## Approved Empty Inbox v1
@@ -139,6 +139,7 @@ Dependency rule for the first slice:
 - Save disabled when neither trimmed text nor an image exists
 - Save enabled with text, images, or both
 - Edit mode uses the same composer with `Edit capture` as its centered title and a separate `Delete capture` action.
+- New Capture autofocuses the text editor; Edit Capture initially opens with the keyboard closed.
 
 **Editor:**
 - Large bounded `surface` editor on `background`
@@ -185,15 +186,27 @@ Dependency rule for the first slice:
 
 - The pencil opens the existing composer in edit mode using an optional typed `id` route parameter; the composer UI is not duplicated.
 - Edit mode reads `Edit capture` and loads the selected capture’s text, images, and reminder. Existing stored images appear in the attachment rail without reprocessing.
+- Edit Capture has a fixed classification/delete utility row beneath the header, and classification remains visible while editing text. Variable editor content scrolls independently below it when constrained by the keyboard; the bordered editor retains a usable minimum height. The reminder/media toolbar remains fixed above the keyboard.
 - Users may change text, add/remove images, and add/change/remove a reminder. The maximum five images and permanent-content invariant remain unchanged.
 - Save is enabled only when the edited capture is valid, changed, and not currently saving.
 - Cancel/system back asks for discard confirmation only when edit-mode changes exist; unchanged edits close immediately. Discarding preserves the original capture and permanent files while cleaning only new temporary files.
 
 ### Deletion
 
-- `Delete capture` appears only inside edit mode and uses semantic danger styling. It is absent in creation mode and the Inbox.
+- `Delete capture` appears only inside edit mode as a compact destructive icon in the fixed utility row beneath the header. It uses confirmation, is absent in creation mode and the Inbox, and is not a primary action beneath the header.
 - Pressing it confirms with title `Delete capture?`, message `This permanently deletes the capture and its images.`, and `Cancel` / `Delete` actions.
 - Confirmed deletion permanently removes the capture, cascaded image records, permanent image files, and associated scheduled reminder where possible. No trash or archive behavior is introduced.
+
+## Approved Capture Classification v1
+
+- Supported values are `Unsorted`, `Note`, `Task`, `Idea`, and `Reference`, backed by the typed values `unsorted`, `note`, `task`, `idea`, and `reference`.
+- New captures continue to default to `Unsorted`, but may optionally be classified during creation. New Capture uses a full-width `Sort as: <classification>` control beneath the header; Edit Capture uses `Stowed in: <classification>` beside its compact edit-only delete control.
+- The classification control uses restrained `accent-soft` styling and semantic accent text/chevron, and remains visible above the editor while the keyboard is open. Both modes use the same `Move to` sheet.
+- Tapping it opens a bottom-anchored `Move to` sheet with five full-width, 48dp rows. The selected value uses semantic purple text and a trailing purple check. Selection updates local draft state and closes immediately; Android Back and backdrop dismissal close without changing it.
+- Classification is persisted only when the editor’s Save succeeds, inside the same atomic edit transaction as the capture update. Inbox metadata reflects the stored classification.
+- No category-specific colors, filtering, tabs, folders, drag-and-drop, or automatic classification are included.
+- The classification control has clear spacing from the fixed reminder/media toolbar.
+- With attachments, previews live inside the bordered editor container at its bottom, after the growing text area, while the editor preserves a useful minimum height.
 
 ## Approved Reminder Sheet v1
 

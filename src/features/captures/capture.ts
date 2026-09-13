@@ -5,6 +5,25 @@ export type Classification =
   | "idea"
   | "reference";
 
+export const CLASSIFICATION_OPTIONS: ReadonlyArray<{
+  value: Classification;
+  label: string;
+}> = [
+  { value: "unsorted", label: "Unsorted" },
+  { value: "note", label: "Note" },
+  { value: "task", label: "Task" },
+  { value: "idea", label: "Idea" },
+  { value: "reference", label: "Reference" },
+];
+
+export function isClassification(value: string): value is Classification {
+  return CLASSIFICATION_OPTIONS.some((option) => option.value === value);
+}
+
+export function classificationLabel(value: Classification): string {
+  return CLASSIFICATION_OPTIONS.find((option) => option.value === value)?.label ?? "Unsorted";
+}
+
 export type WorkflowState = "active" | "archived";
 
 export interface CaptureImage {

@@ -1,5 +1,5 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import type { Capture, CaptureImage, CaptureImageRow, CaptureRow } from "./capture";
+import { isClassification, type Capture, type CaptureImage, type CaptureImageRow, type CaptureRow, type Classification } from "./capture";
 import { mapDbRowToCapture, mapDbImageRowToCaptureImage } from "./capture";
 
 /**
@@ -49,6 +49,7 @@ export async function createCapture(
   imageUris: Array<{ uri: string; width: number; height: number; mimeType: string }>,
   reminderAt: number | null = null,
   notificationId: string | null = null,
+  classification: Classification = "unsorted",
 ): Promise<Capture> {
   const text = inputText ? inputText.trim() : null;
   const hasText = text && text.length > 0;
@@ -56,6 +57,9 @@ export async function createCapture(
 
   if (!hasText && !hasImages) {
     throw new Error("capture-empty");
+  }
+  if (!isClassification(classification)) {
+    throw new Error("classification-invalid");
   }
 
   const now = Date.now();
@@ -66,7 +70,7 @@ export async function createCapture(
     const result = await txn.runAsync(
       `INSERT INTO captures (text, classification, workflow_state, reminder_at, notification_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       hasText ? text : null,
-      "unsorted",
+      classification,
       "active",
       reminderAt,
       notificationId,
@@ -181,6 +185,7 @@ export async function getCaptureById(
 }
 
 export interface UpdateCaptureInput {
+  classification: Classification;
   text: string | null;
   images: Array<{
     uri: string;
@@ -204,6 +209,7 @@ export async function updateCapture(
 ): Promise<UpdateCaptureResult> {
   const text = input.text?.trim() || null;
   if (!text && input.images.length === 0) throw new Error("capture-empty");
+  if (!isClassification(input.classification)) throw new Error("classification-invalid");
 
   let updated: Capture | null = null;
   let removedImageUris: string[] = [];
@@ -215,8 +221,9 @@ export async function updateCapture(
       .map((image) => image.uri)
       .filter((uri) => !retainedUris.has(uri));
     await txn.runAsync(
-      "UPDATE captures SET text = ?, reminder_at = ?, notification_id = ?, updated_at = ? WHERE id = ?",
+      "UPDATE captures SET text = ?, classification = ?, reminder_at = ?, notification_id = ?, updated_at = ? WHERE id = ?",
       text,
+      input.classification,
       input.reminderAt,
       input.notificationId,
       Date.now(),

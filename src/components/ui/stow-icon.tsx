@@ -1,10 +1,13 @@
 import {
   Bell,
+  Check,
+  ChevronDown,
   Camera,
   Inbox,
   Paperclip,
   Pencil,
   SquarePen,
+  Trash2,
   X,
   type LucideIcon,
 } from "lucide-react-native";
@@ -17,7 +20,10 @@ export type StowIconName =
   | "close"
   | "square-pen"
   | "inbox"
-  | "pencil";
+  | "pencil"
+  | "check"
+  | "chevron-down"
+  | "trash-2";
 
 interface StowIconProps {
   name: StowIconName;
@@ -33,6 +39,9 @@ const ICONS: Record<StowIconName, LucideIcon> = {
   "square-pen": SquarePen,
   inbox: Inbox,
   pencil: Pencil,
+  check: Check,
+  "chevron-down": ChevronDown,
+  "trash-2": Trash2,
 };
 
 export function StowIcon({ name, size = 24, color }: StowIconProps) {

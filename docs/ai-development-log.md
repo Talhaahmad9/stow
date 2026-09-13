@@ -1,5 +1,33 @@
 # AI Development Log
 
+### 2026-09-14 — Creation-time classification and attachment positioning correction
+
+- **Scope:** New Capture now offers the shared classification selector with `Sort as: <classification>` while Edit Capture retains `Stowed in: <classification>` and its edit-only delete control.
+- **Implementation:** Creation still defaults to `unsorted`, but the selected typed classification is validated and bound in the existing capture insert transaction. The editor only flex-grows when there are no attachments, retaining a 208dp minimum when previews exist.
+- **Documentation/verification:** Updated the product requirements. No schema or dependency changes were made. Static TypeScript verification passed. The product owner completed and approved the Android classification/preview refinement and final MVP regression; actual notification delivery remains pending in the APK/development-build environment.
+- **Correction:** The attachment rail remains inside the bordered editor container at its bottom, after the growing text area; its sizing, removal behavior, and ownership are unchanged.
+
+### 2026-09-14 — Edit Capture fixed utility row correction
+
+- **Correction:** The previous keyboard-layout fix made classification and Delete scroll away with the editor, and Edit Capture still inherited New Capture’s autofocus behavior.
+- **Final architecture:** Edit Capture now opens with the keyboard closed and uses a fixed utility row beneath the header for classification and the compact destructive trash control. Only variable editor content scrolls; the existing toolbar remains fixed above the keyboard.
+- **Verification:** Static verification remains pending after this edit; physical Android verification is required for keyboard visibility, fixed controls, scrolling, and regression coverage. No business logic or dependency changes were made.
+
+### 2026-09-14 — Edit Capture keyboard layout correction
+
+- **Correction:** Android device testing exposed a collapsed editor when the keyboard opened: `KeyboardAvoidingView` with `behavior="height"` reduced available height while fixed header, controls, and toolbar siblings left the editor as the only shrinking `flex-1` child.
+- **Implementation:** Variable editor content is now inside a bounded `ScrollView` with a growing content container, keyboard-aware tap/drag behavior, restrained bottom spacing, and a 208dp minimum editor height. The existing reminder/media toolbar remains outside the scroll view and fixed above the keyboard.
+- **Delete/classification layout:** The existing edit-only Delete action moved from beneath the header to the bottom of scrollable edit content and became a low-emphasis danger-text action. Classification remains in the same edit-only location with visible separation before the fixed toolbar.
+- **Verification:** `npx tsc --noEmit` and `git diff --check` passed. Physical Android verification remains pending for keyboard-open editing, scrolling, Delete placement, classification spacing, and create-mode regression coverage.
+
+### 2026-09-14 — Capture Classification v1
+
+- **Scope/files:** Added edit-only classification selection and Inbox metadata formatting in `src/app/capture.tsx`, `src/app/index.tsx`, `src/components/composer/classification-sheet.tsx`, `src/components/ui/stow-icon.tsx`, `src/features/captures/capture.ts`, and `src/features/captures/capture-repository.ts`; updated product requirements and this log.
+- **Decisions:** Reused typed `Classification` values/options, a controlled local draft, and a compact `Move to` bottom sheet. Classification persists through the existing parameterized SQLite update inside the exclusive edit transaction. New captures remain `unsorted`.
+- **Documentation/verification:** Consulted Expo SDK 57 SQLite, React Native 0.86 Modal/Pressable, and Uniwind class-name documentation. `npx tsc --noEmit` and `git diff --check` passed. No dependency or schema changes were made.
+- **Pending:** Physical Android checks remain pending for creation/edit visibility, sheet selection/dismissal, classification-only save/discard, persistence/restart, Inbox metadata, light/dark styling, and regression coverage for reminders, attachments, edit/delete, onboarding, and the CTA.
+- **Learning note:** A union type limits values at compile time, controlled draft state mirrors the editor, dirty comparison detects unsaved changes, parameterized SQL binds runtime values safely, and saving classification in the same transaction keeps the edit atomic.
+
 ### 2026-09-14 — Capture editing and deletion MVP
 
 - **Files changed:** `docs/product-requirements.md`, `docs/ai-development-log.md`, `src/app/index.tsx`, `src/app/capture.tsx`, `src/app/_layout.tsx`, `src/components/ui/stow-icon.tsx`, `src/features/captures/capture-repository.ts`, `src/hooks/useDraftAttachments.ts`, and onboarding-state cleanup.

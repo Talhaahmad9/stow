@@ -5,18 +5,22 @@ import {
   Alert,
   BackHandler,
   Image as RNImage,
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   Text,
   TextInput,
   View,
 } from "react-native";
 import { AppScreen } from "../components/app-screen";
+import { StowIcon } from "../components/ui/stow-icon";
 import { AttachmentPreviewRail } from "../components/composer/attachment-preview-rail";
 import { ComposerToolbar } from "../components/composer/composer-toolbar";
 import { ReminderSheet } from "../components/composer/reminder-sheet";
+import { ClassificationSheet } from "../components/composer/classification-sheet";
 import { useDraftAttachments } from "../hooks/useDraftAttachments";
 import { useCssVariables } from "../hooks/useCssVariables";
 import {
@@ -26,7 +30,7 @@ import {
   updateCapture,
   updateCaptureReminder,
 } from "../features/captures/capture-repository";
-import type { Capture } from "../features/captures/capture";
+import { classificationLabel, type Capture, type Classification } from "../features/captures/capture";
 import {
   processAndStoreImage,
   deleteStoredImage,
@@ -59,8 +63,10 @@ export default function CaptureModal() {
   // Draft reminder: only a timestamp stored in state.
   // Notifications are only scheduled after capture is created.
   const [draftReminderAt, setDraftReminderAt] = useState<number | null>(null);
+  const [draftClassification, setDraftClassification] = useState<Classification>("unsorted");
 
   const [showReminderSheet, setShowReminderSheet] = useState(false);
+  const [showClassificationSheet, setShowClassificationSheet] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [loadingCapture, setLoadingCapture] = useState(routeId !== undefined);
   const [editCapture, setEditCapture] = useState<Capture | null>(null);
@@ -88,6 +94,7 @@ export default function CaptureModal() {
           setEditCapture(capture);
           setText(capture.text ?? "");
           setDraftReminderAt(capture.reminderAt);
+          setDraftClassification(capture.classification);
           initializeImages(
             capture.images.map((image) => ({
               id: `stored-${image.id}`,
@@ -114,10 +121,13 @@ export default function CaptureModal() {
   const isChanged = editCapture
     ? trimmed !== (editCapture.text ?? "") ||
       draftReminderAt !== editCapture.reminderAt ||
+      draftClassification !== editCapture.classification ||
       images.length !== editCapture.images.length ||
       images.some((image, index) => image.uri !== editCapture.images[index]?.uri)
     : hasContent || draftReminderAt !== null;
-  const hasDraft = editMode ? isChanged : hasContent || draftReminderAt !== null;
+  const hasDraft = editMode
+    ? isChanged
+    : hasContent || draftReminderAt !== null || draftClassification !== "unsorted";
   const saveEnabled = hasContent && (!editMode || isChanged) && !saving;
 
   useEffect(() => {
@@ -289,6 +299,7 @@ export default function CaptureModal() {
       if (editMode && editCapture && captureId !== null) {
         const updateResult = await updateCapture(db, captureId, {
           text: trimmed.length > 0 ? trimmed : null,
+          classification: draftClassification,
           images: images.map((image) => {
             const processed = processedById.get(image.id);
             return processed ?? image;
@@ -305,6 +316,7 @@ export default function CaptureModal() {
           permanentImages,
           null,
           null,
+          draftClassification,
         );
       }
     } catch (err) {
@@ -401,6 +413,7 @@ export default function CaptureModal() {
     images,
     trimmed,
     draftReminderAt,
+    draftClassification,
     db,
     markStored,
     router,
@@ -499,31 +512,67 @@ export default function CaptureModal() {
           </Pressable>
         </View>
 
-        {editMode && (
-          <Pressable
-            onPress={onDelete}
-            disabled={saving}
-            accessibilityRole="button"
-            accessibilityLabel="Delete capture"
-            className="mx-4 mb-3 min-h-12 items-center justify-center rounded-xl border border-danger bg-danger-soft px-4 active:opacity-80 disabled:opacity-40"
-          >
-            <Text className="font-sans-medium text-danger">Delete capture</Text>
-          </Pressable>
-        )}
+        <View className="mx-4 mb-3 mt-3 flex-row items-center gap-2">
+            <Pressable
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowClassificationSheet(true);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={`Change classification. Currently ${classificationLabel(draftClassification)}.`}
+              accessibilityState={{ expanded: showClassificationSheet }}
+              className="min-h-12 flex-1 flex-row items-center justify-between rounded-xl bg-accent-soft px-4 py-3"
+            >
+              <Text className="font-sans text-foreground-muted">
+                {editMode ? "Stowed in: " : "Sort as: "}<Text className="font-sans-medium text-accent">{classificationLabel(draftClassification)}</Text>
+              </Text>
+              <StowIcon name="chevron-down" size={18} color={colors.accent} />
+            </Pressable>
+            {editMode && (
+              <Pressable
+                onPress={onDelete}
+                disabled={saving}
+                accessibilityRole="button"
+                accessibilityLabel="Delete capture"
+                hitSlop={8}
+                className="h-12 w-12 items-center justify-center rounded-xl bg-danger-soft active:opacity-70 disabled:opacity-40"
+              >
+                <StowIcon name="trash-2" size={21} color={colors.danger} />
+              </Pressable>
+            )}
+          </View>
 
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ flexGrow: 1, paddingBottom: 16 }}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          showsVerticalScrollIndicator={false}
+        >
         {/* Editor */}
-        <View className="mx-4 flex-1 overflow-hidden rounded-xl border border-border-strong bg-surface">
+        <View
+          style={{ flexGrow: images.length === 0 ? 1 : 0 }}
+          className="mx-4 min-h-52 overflow-hidden rounded-xl border border-border-strong bg-surface"
+        >
           <TextInput
             value={text}
             onChangeText={setText}
             multiline
-            autoFocus
+            autoFocus={!editMode}
             textAlignVertical="top"
             placeholder="What do you want to remember?"
             placeholderTextColor={colors["foreground-muted"]}
             accessibilityLabel="Capture text"
             className="flex-1 p-4 font-sans text-foreground"
           />
+          {images.length > 0 && (
+            <View className="border-t border-border pt-2">
+              <AttachmentPreviewRail
+                images={images.map((img) => ({ id: img.id, uri: img.uri }))}
+                onRemoveImage={removeImage}
+              />
+            </View>
+          )}
         </View>
 
         {/* Draft reminder badge */}
@@ -541,17 +590,11 @@ export default function CaptureModal() {
           </Pressable>
         )}
 
-        {/* Attachment rail */}
-        {images.length > 0 && (
-          <AttachmentPreviewRail
-            images={images.map((img) => ({ id: img.id, uri: img.uri }))}
-            onRemoveImage={removeImage}
-          />
-        )}
-
         {error !== null && (
           <Text className="mx-4 mt-2 font-sans text-sm text-danger">{error}</Text>
         )}
+
+        </ScrollView>
 
         {/* Toolbar */}
         <ComposerToolbar
@@ -569,6 +612,16 @@ export default function CaptureModal() {
           onConfirm={handleConfirmReminder}
           onRemove={handleRemoveReminder}
           onDismiss={() => setShowReminderSheet(false)}
+        />
+
+        <ClassificationSheet
+          visible={showClassificationSheet}
+          selected={draftClassification}
+          onSelect={(value) => {
+            setDraftClassification(value);
+            setShowClassificationSheet(false);
+          }}
+          onDismiss={() => setShowClassificationSheet(false)}
         />
 
         {/* Discard confirmation */}

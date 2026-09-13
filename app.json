@@ -10,6 +10,7 @@
     "primaryColor": "#5B5BD6",
     "userInterfaceStyle": "automatic",
     "android": {
+      "package": "me.talhaahmad.stow",
       "adaptiveIcon": {
         "backgroundColor": "#5B5BD6",
         "foregroundImage": "./assets/images/stow-adaptive-foreground.png",
@@ -56,6 +57,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "79335861-2b48-482c-a308-b5a0bf351517"
+      }
+    },
+    "owner": "talhaahmad9s-team"
   }
 }

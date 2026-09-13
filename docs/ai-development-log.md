@@ -1,5 +1,9 @@
 # AI Development Log
 
+### 2026-09-14 — Android APK configuration
+
+- Locked the Android application ID to `me.talhaahmad.stow` and added an internal-distribution `preview` EAS profile that explicitly produces an installable APK. EAS project linking, signing credentials, cloud build, installation, and physical-device verification remain pending.
+
 ### 2026-09-14 — Creation-time classification and attachment positioning correction
 
 - **Scope:** New Capture now offers the shared classification selector with `Sort as: <classification>` while Edit Capture retains `Stowed in: <classification>` and its edit-only delete control.

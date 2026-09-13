@@ -16,6 +16,10 @@ const MAX_IMAGES = 5;
 export function useDraftAttachments() {
   const [images, setImages] = useState<DraftImage[]>([]);
 
+  const initializeImages = useCallback((initial: DraftImage[]) => {
+    setImages(initial);
+  }, []);
+
   const addImages = useCallback(
     (incoming: Array<{ uri: string; width: number; height: number }>) => {
       setImages((current) => {
@@ -78,5 +82,5 @@ export function useDraftAttachments() {
 
   const canAddImages = images.length < MAX_IMAGES;
 
-  return { images, addImages, removeImage, markStored, clearAll, canAddImages };
+  return { images, addImages, removeImage, markStored, clearAll, canAddImages, initializeImages };
 }

@@ -1,5 +1,24 @@
 # AI Development Log
 
+### 2026-09-14 — Capture editing and deletion MVP
+
+- **Files changed:** `docs/product-requirements.md`, `docs/ai-development-log.md`, `src/app/index.tsx`, `src/app/capture.tsx`, `src/app/_layout.tsx`, `src/components/ui/stow-icon.tsx`, `src/features/captures/capture-repository.ts`, `src/hooks/useDraftAttachments.ts`, and onboarding-state cleanup.
+- **Implementation:** Reused the existing capture route and composer for creation and typed-ID edit mode. Edit mode loads the complete capture, compares text/ordered images/reminder for dirty state, and processes only new temporary images. Each processed image is associated with its draft image ID, so mixed existing/new image orders remain correct.
+- **Transactions and ownership:** Capture updates replace ordered image metadata inside `withExclusiveTransactionAsync`; deletion reads required cleanup metadata and deletes the row in the same exclusive transaction. New permanent files are removed on pre-commit failure; removed existing files are cleaned only after commit. Confirmed deletion also cleans the edit session’s temporary attachment URIs after commit.
+- **Deletion/reminders:** Edit mode has an explicit danger-styled delete confirmation. Successful deletion cancels the stored notification and removes permanent image files post-commit. Reminder edits retain the old metadata and notification until a replacement is persisted, or until removal metadata is successfully cleared; failed scheduling/persistence, including an expired selected time reported by `scheduleReminder`, leaves the original reminder working and reports that only the reminder change was not applied.
+- **Cleanup:** Removed the temporary development-only onboarding reset implementation. No schema or dependency changes were made.
+- **Verification:** The product owner physically verified and approved the Android Expo Go flows for edit loading, text editing and persistence, retaining existing images while adding new images, removing existing images, discard/back preservation, permanent deletion, temporary-image deletion, and light/dark appearance. Local-notification delivery and reminder replacement still require a Stow development build and were not physically verified.
+
+### 2026-09-14 — Locked two-page Stow onboarding
+
+- **Milestone:** Implemented the locked two-page onboarding route.
+- **Final copy:** `Stow`; `Stow away your thoughts`; `How Stow works`; `Capture` / `Save a thought, photo, or file.`; `Remember` / `Add a reminder when it matters.`; `Sort later` / `Everything starts in your Inbox.`; actions `Next` and `Finish`.
+- **Behavior:** A paging-enabled horizontal `FlatList` supports exactly two stable pages. Swiping updates the active dots; `Next` scrolls to page 2; `Finish` persists completion. There is no Skip action, third page, autoplay, or timer. Hardware back on page 2 returns to page 1.
+- **Persistence:** Completion uses Expo SQLite’s `expo-sqlite/kv-store` with the versioned key `stow:onboarding-complete:v1`, so future storage migrations can use a new key without ambiguity.
+- **Startup/routing:** Fonts load first, then SQLite initialization/migration and onboarding state resolve before navigation mounts and the splash hides. Expo Router `Stack.Protected` gates onboarding against Inbox/capture routes, preventing an Inbox flash and making onboarding inaccessible after completion.
+- **Styling/assets:** Onboarding uses semantic light/dark utilities and Inter fonts, respects safe areas, and renders the existing official `assets/images/stow-mark-master.png` with `expo-image`. No Gemini logo or new icon library was added.
+- **Physical verification:** The product owner physically verified and approved the Android Expo Go onboarding layout and navigation, including swipe/back behavior, first-install persistence, and light/dark appearance. Local-notification delivery and reminder replacement were not physically verified because they require a Stow development build.
+
 ### 2026-09-14 — Final reminder and attachment reliability correction
 
 - Removed draft thumbnails immediately on attachment removal, while temporary

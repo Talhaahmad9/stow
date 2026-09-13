@@ -157,9 +157,121 @@ export async function updateCaptureReminder(
   );
 }
 
+async function readCaptureById(
+  db: SQLiteDatabase,
+  captureId: number,
+): Promise<Capture | null> {
+  const row = await db.getFirstAsync<CaptureRow>(
+    "SELECT * FROM captures WHERE id = ?",
+    captureId,
+  );
+  if (!row) return null;
+  const imageRows = await db.getAllAsync<CaptureImageRow>(
+    "SELECT * FROM capture_images WHERE capture_id = ? ORDER BY position ASC",
+    captureId,
+  );
+  return mapDbRowToCapture(row, imageRows.map(mapDbImageRowToCaptureImage));
+}
+
+export async function getCaptureById(
+  db: SQLiteDatabase,
+  captureId: number,
+): Promise<Capture | null> {
+  return readCaptureById(db, captureId);
+}
+
+export interface UpdateCaptureInput {
+  text: string | null;
+  images: Array<{
+    uri: string;
+    width: number;
+    height: number;
+    mimeType: string;
+  }>;
+  reminderAt: number | null;
+  notificationId: string | null;
+}
+
+export interface UpdateCaptureResult {
+  capture: Capture;
+  removedImageUris: string[];
+}
+
+export async function updateCapture(
+  db: SQLiteDatabase,
+  captureId: number,
+  input: UpdateCaptureInput,
+): Promise<UpdateCaptureResult> {
+  const text = input.text?.trim() || null;
+  if (!text && input.images.length === 0) throw new Error("capture-empty");
+
+  let updated: Capture | null = null;
+  let removedImageUris: string[] = [];
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const before = await readCaptureById(txn, captureId);
+    if (!before) throw new Error("capture-not-found");
+    const retainedUris = new Set(input.images.map((image) => image.uri));
+    removedImageUris = before.images
+      .map((image) => image.uri)
+      .filter((uri) => !retainedUris.has(uri));
+    await txn.runAsync(
+      "UPDATE captures SET text = ?, reminder_at = ?, notification_id = ?, updated_at = ? WHERE id = ?",
+      text,
+      input.reminderAt,
+      input.notificationId,
+      Date.now(),
+      captureId,
+    );
+    await txn.runAsync("DELETE FROM capture_images WHERE capture_id = ?", captureId);
+    for (const [position, image] of input.images.entries()) {
+      await txn.runAsync(
+        "INSERT INTO capture_images (capture_id, uri, width, height, mime_type, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        captureId,
+        image.uri,
+        image.width,
+        image.height,
+        image.mimeType,
+        position,
+        Date.now(),
+      );
+    }
+    updated = await readCaptureById(txn, captureId);
+    if (!updated) throw new Error("failed-to-read-updated-capture");
+  });
+  if (!updated) throw new Error("failed-to-read-updated-capture");
+  return { capture: updated, removedImageUris };
+}
+
+export interface DeletedCaptureData {
+  imageUris: string[];
+  notificationId: string | null;
+}
+
+export async function deleteCapture(
+  db: SQLiteDatabase,
+  captureId: number,
+): Promise<DeletedCaptureData> {
+  let deleted: DeletedCaptureData | null = null;
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const capture = await readCaptureById(txn, captureId);
+    if (!capture) throw new Error("capture-not-found");
+    const result = await txn.runAsync("DELETE FROM captures WHERE id = ?", captureId);
+    if (result.changes !== 1) throw new Error("capture-delete-failed");
+    deleted = {
+      imageUris: capture.images.map((image) => image.uri),
+      notificationId: capture.notificationId,
+    };
+  });
+  if (!deleted) throw new Error("capture-delete-failed");
+  return deleted;
+}
+
 export default {
   createTextCapture,
   createCapture,
   listActiveCaptures,
   updateCaptureReminder,
+  getCaptureById,
+  updateCapture,
+  deleteCapture,
 };

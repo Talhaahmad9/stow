@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useSQLiteContext } from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -21,6 +21,9 @@ import { useDraftAttachments } from "../hooks/useDraftAttachments";
 import { useCssVariables } from "../hooks/useCssVariables";
 import {
   createCapture,
+  deleteCapture,
+  getCaptureById,
+  updateCapture,
   updateCaptureReminder,
 } from "../features/captures/capture-repository";
 import type { Capture } from "../features/captures/capture";
@@ -44,6 +47,7 @@ import { formatReminderTime } from "../features/reminders/reminder-utils";
 
 export default function CaptureModal() {
   const router = useRouter();
+  const { id: routeId } = useLocalSearchParams<{ id?: string }>();
   const db = useSQLiteContext();
   const colors = useCssVariables();
 
@@ -58,16 +62,66 @@ export default function CaptureModal() {
 
   const [showReminderSheet, setShowReminderSheet] = useState(false);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
+  const [loadingCapture, setLoadingCapture] = useState(routeId !== undefined);
+  const [editCapture, setEditCapture] = useState<Capture | null>(null);
 
-  const { images, addImages, removeImage, markStored, clearAll, canAddImages } =
+  const { images, addImages, removeImage, markStored, clearAll, canAddImages, initializeImages } =
     useDraftAttachments();
+
+  const captureId =
+    typeof routeId === "string" && /^[1-9]\d*$/.test(routeId)
+      ? Number(routeId)
+      : null;
+  const editMode = routeId !== undefined;
+
+  useEffect(() => {
+    if (!editMode) return;
+    if (captureId === null) {
+      setLoadingCapture(false);
+      return;
+    }
+    let mounted = true;
+    void getCaptureById(db, captureId)
+      .then((capture) => {
+        if (!mounted) return;
+        if (capture) {
+          setEditCapture(capture);
+          setText(capture.text ?? "");
+          setDraftReminderAt(capture.reminderAt);
+          initializeImages(
+            capture.images.map((image) => ({
+              id: `stored-${image.id}`,
+              uri: image.uri,
+              width: image.width,
+              height: image.height,
+              mimeType: image.mimeType,
+              isStored: true,
+            })),
+          );
+        }
+      })
+      .catch((loadError) => console.error("Unable to load capture for editing.", loadError))
+      .finally(() => {
+        if (mounted) setLoadingCapture(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [captureId, db, editMode, initializeImages]);
 
   const trimmed = text.trim();
   const hasContent = trimmed.length > 0 || images.length > 0;
-  const hasDraft = hasContent || draftReminderAt !== null;
-  const saveEnabled = hasContent && !saving;
+  const isChanged = editCapture
+    ? trimmed !== (editCapture.text ?? "") ||
+      draftReminderAt !== editCapture.reminderAt ||
+      images.length !== editCapture.images.length ||
+      images.some((image, index) => image.uri !== editCapture.images[index]?.uri)
+    : hasContent || draftReminderAt !== null;
+  const hasDraft = editMode ? isChanged : hasContent || draftReminderAt !== null;
+  const saveEnabled = hasContent && (!editMode || isChanged) && !saving;
 
   useEffect(() => {
+    if (editMode) return;
     let mounted = true;
 
     void recoverPendingCameraResult()
@@ -81,7 +135,7 @@ export default function CaptureModal() {
     return () => {
       mounted = false;
     };
-  }, [addImages]);
+  }, [addImages, editMode]);
 
   // BackHandler using useFocusEffect so subscription is tied to screen focus
   // and is always cleaned up on blur/unmount.
@@ -207,16 +261,18 @@ export default function CaptureModal() {
     setError(null);
 
     const permanentImages: ProcessedImage[] = [];
+    const processedById = new Map<string, ProcessedImage>();
     const storedUris: string[] = [];
     const temporaryUris = images
       .filter((image) => !image.isStored)
       .map((image) => image.uri);
 
     try {
-      for (const img of images) {
+      for (const img of images.filter((image) => !image.isStored)) {
         const stored = await processAndStoreImage(img.uri, img.width, img.height);
         storedUris.push(stored.uri);
         permanentImages.push(stored);
+        processedById.set(img.id, stored);
       }
     } catch (err) {
       await Promise.all(storedUris.map((uri) => deleteStoredImage(uri)));
@@ -228,14 +284,29 @@ export default function CaptureModal() {
     }
 
     let capture: Capture;
+    let removedImageUris: string[] = [];
     try {
-      capture = await createCapture(
-        db,
-        trimmed.length > 0 ? trimmed : null,
-        permanentImages,
-        null,
-        null,
-      );
+      if (editMode && editCapture && captureId !== null) {
+        const updateResult = await updateCapture(db, captureId, {
+          text: trimmed.length > 0 ? trimmed : null,
+          images: images.map((image) => {
+            const processed = processedById.get(image.id);
+            return processed ?? image;
+          }),
+          reminderAt: editCapture.reminderAt,
+          notificationId: editCapture.notificationId,
+        });
+        capture = updateResult.capture;
+        removedImageUris = updateResult.removedImageUris;
+      } else {
+        capture = await createCapture(
+          db,
+          trimmed.length > 0 ? trimmed : null,
+          permanentImages,
+          null,
+          null,
+        );
+      }
     } catch (err) {
       await Promise.all(storedUris.map((uri) => deleteStoredImage(uri)));
       setError(
@@ -245,10 +316,32 @@ export default function CaptureModal() {
       return;
     }
 
-    images.forEach((image, index) => markStored(image.id, permanentImages[index]));
+    images.forEach((image, index) => {
+      const stored = processedById.get(image.id);
+      if (stored) markStored(image.id, stored);
+    });
     await cleanupTempImages(temporaryUris);
+    if (editMode) {
+      await Promise.all(removedImageUris.map((uri) => deleteStoredImage(uri)));
+    }
 
-    if (draftReminderAt !== null && draftReminderAt > Date.now()) {
+    const reminderChanged = !editMode || draftReminderAt !== editCapture?.reminderAt;
+    const reminderFailureMessage = editMode
+      ? "Capture edits were saved, but the reminder change was not applied."
+      : "The capture was saved without a reminder.";
+    const pastReminderMessage = editMode
+      ? "Capture edits were saved, but the reminder change was not applied because the selected time has passed."
+      : "The capture was saved without a reminder because the selected time has passed.";
+    let oldReminderCanBeCancelled = false;
+    if (reminderChanged && draftReminderAt === null && editMode && editCapture) {
+      try {
+        await updateCaptureReminder(db, capture.id, null, null);
+        oldReminderCanBeCancelled = true;
+      } catch (error) {
+        console.error("Unable to remove reminder metadata.", error);
+        Alert.alert("Reminder not changed", "Capture edits were saved, but the reminder change was not applied.");
+      }
+    } else if (reminderChanged && draftReminderAt !== null) {
       const result = await scheduleReminder(
         capture.id,
         draftReminderAt,
@@ -265,12 +358,13 @@ export default function CaptureModal() {
               draftReminderAt,
               result.notificationId,
             );
+            oldReminderCanBeCancelled = true;
           } catch (error) {
             await cancelReminder(result.notificationId);
             console.error("Unable to persist reminder metadata.", error);
             Alert.alert(
               "Reminder not set",
-              "The capture was saved without a reminder.",
+              reminderFailureMessage,
             );
           }
           break;
@@ -278,22 +372,26 @@ export default function CaptureModal() {
         case "development-build-required":
           Alert.alert(
             "Reminder not set",
-            "The capture was saved without a reminder.",
+            reminderFailureMessage,
           );
           break;
         case "past-time":
           Alert.alert(
             "Reminder not set",
-            "The capture was saved without a reminder because the selected time has passed.",
+            pastReminderMessage,
           );
           break;
         case "failed":
           Alert.alert(
             "Reminder not set",
-            "The capture was saved without a reminder.",
+            reminderFailureMessage,
           );
           break;
       }
+    }
+
+    if (oldReminderCanBeCancelled && editCapture?.notificationId) {
+      await cancelReminder(editCapture.notificationId);
     }
 
     setSaving(false);
@@ -306,7 +404,70 @@ export default function CaptureModal() {
     db,
     markStored,
     router,
+    editMode,
+    editCapture,
+    captureId,
+    updateCapture,
   ]);
+
+  const onDelete = useCallback(() => {
+    if (!editMode || captureId === null || saving) return;
+    Alert.alert(
+      "Delete capture?",
+      "This permanently deletes the capture and its images.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => {
+            void (async () => {
+              setSaving(true);
+              const temporaryUris = images
+                .filter((image) => !image.isStored)
+                .map((image) => image.uri);
+              try {
+                const deleted = await deleteCapture(db, captureId);
+                if (deleted.notificationId) await cancelReminder(deleted.notificationId);
+                await Promise.all(deleted.imageUris.map((uri) => deleteStoredImage(uri)));
+                await cleanupTempImages(temporaryUris);
+                router.back();
+              } catch (deleteError) {
+                console.error("Unable to delete capture.", deleteError);
+                setError("Unable to delete this capture. Please try again.");
+                setSaving(false);
+              }
+            })();
+          },
+        },
+      ],
+    );
+  }, [captureId, db, editMode, images, router, saving]);
+
+  if (loadingCapture) {
+    return (
+      <AppScreen>
+        <View className="flex-1 items-center justify-center">
+          <Text className="font-sans text-foreground-muted">Loading capture…</Text>
+        </View>
+      </AppScreen>
+    );
+  }
+
+  if (editMode && (captureId === null || editCapture === null)) {
+    return (
+      <AppScreen>
+        <View className="flex-1 items-center justify-center px-6">
+          <Text className="text-center font-sans text-foreground-muted">
+            This capture could not be loaded.
+          </Text>
+          <Pressable onPress={() => router.back()} className="mt-4 min-h-12 items-center justify-center rounded-xl border border-border px-4">
+            <Text className="font-sans-medium text-foreground">Close</Text>
+          </Pressable>
+        </View>
+      </AppScreen>
+    );
+  }
 
   return (
     <AppScreen>
@@ -324,7 +485,9 @@ export default function CaptureModal() {
           >
             <Text className="font-sans text-foreground">Cancel</Text>
           </Pressable>
-          <Text className="font-sans-semibold text-foreground">New capture</Text>
+          <Text className="font-sans-semibold text-foreground">
+            {editMode ? "Edit capture" : "New capture"}
+          </Text>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Save capture"
@@ -335,6 +498,18 @@ export default function CaptureModal() {
             <Text className="font-sans-medium text-on-accent">Save</Text>
           </Pressable>
         </View>
+
+        {editMode && (
+          <Pressable
+            onPress={onDelete}
+            disabled={saving}
+            accessibilityRole="button"
+            accessibilityLabel="Delete capture"
+            className="mx-4 mb-3 min-h-12 items-center justify-center rounded-xl border border-danger bg-danger-soft px-4 active:opacity-80 disabled:opacity-40"
+          >
+            <Text className="font-sans-medium text-danger">Delete capture</Text>
+          </Pressable>
+        )}
 
         {/* Editor */}
         <View className="mx-4 flex-1 overflow-hidden rounded-xl border border-border-strong bg-surface">

@@ -22,7 +22,22 @@ function ReminderLine({ reminderAt }: { reminderAt: number }) {
   );
 }
 
-function CaptureRow({ item }: { item: Capture }) {
+function EditButton({ onPress }: { onPress: () => void }) {
+  const colors = useCssVariables();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel="Edit capture"
+      hitSlop={8}
+      className="absolute right-0 top-0 h-11 w-11 items-center justify-center rounded-xl active:bg-accent-soft"
+    >
+      <StowIcon name="pencil" size={20} color={colors.accent} />
+    </Pressable>
+  );
+}
+
+function CaptureRow({ item, onEdit }: { item: Capture; onEdit: (id: number) => void }) {
   const hasText = item.text !== null && item.text.trim().length > 0;
   const hasImages = item.images.length > 0;
   const imageCount = item.images.length;
@@ -30,7 +45,8 @@ function CaptureRow({ item }: { item: Capture }) {
 
   if (hasText && !hasImages) {
     return (
-      <View className="py-5">
+      <View className="relative py-5 pr-12">
+        <EditButton onPress={() => onEdit(item.id)} />
         <Text
           className="font-sans-medium text-lg text-foreground"
           numberOfLines={3}
@@ -51,7 +67,8 @@ function CaptureRow({ item }: { item: Capture }) {
   if (hasText && hasImages) {
     const firstImage = item.images[0];
     return (
-      <View className="flex-row gap-4 py-5">
+      <View className="relative flex-row gap-4 py-5 pr-12">
+        <EditButton onPress={() => onEdit(item.id)} />
         <View>
           <Image
             source={{ uri: firstImage.uri }}
@@ -102,7 +119,8 @@ function CaptureRow({ item }: { item: Capture }) {
     const showCount = Math.min(2, imageCount);
     const remainder = imageCount - showCount;
     return (
-      <View className="py-5">
+      <View className="relative py-5 pr-12">
+        <EditButton onPress={() => onEdit(item.id)} />
         <View className="flex-row gap-2">
           {item.images.slice(0, showCount).map((img, idx) => (
             <View key={img.id} style={{ position: "relative" }}>
@@ -235,7 +253,9 @@ export default function Index() {
               ItemSeparatorComponent={() => (
                 <View className="border-t border-border" />
               )}
-              renderItem={({ item }) => <CaptureRow item={item} />}
+              renderItem={({ item }) => (
+                <CaptureRow item={item} onEdit={(id) => router.push({ pathname: "/capture", params: { id: String(id) } })} />
+              )}
             />
           )}
         </View>

@@ -1,5 +1,19 @@
 # Stow Product Requirements
 
+## Locked two-page onboarding (v1)
+
+- First install opens a single horizontally swipeable onboarding route with exactly two pages and no automatic advancement or Skip action.
+- Page 1 uses the official `assets/images/stow-mark-master.png` logo, the brand name `Stow`, and the subtitle `Stow away your thoughts`. It shows two pagination dots and a full-width `Next` action; `Next` moves to page 2.
+- Page 2 is headed `How Stow works` and contains these restrained feature rows:
+  - `Capture` — `Save a thought, photo, or file.`
+  - `Remember` — `Add a reminder when it matters.`
+  - `Sort later` — `Everything starts in your Inbox.`
+- Page 2 shows the same two-dot pagination with the second dot active and a full-width `Finish` action.
+- Swiping updates the active dot. Finish persists completion before opening Inbox. Android hardware back returns from page 2 to page 1 and keeps normal system behavior on page 1.
+- Completion is stored with Expo SQLite key-value storage under the versioned key `stow:onboarding-complete:v1`. Missing or unreadable state safely shows onboarding; completed state opens Inbox.
+- Root navigation uses protected routes to gate onboarding versus Inbox/capture routes until startup has resolved fonts, SQLite startup/migrations, and the onboarding flag. The splash remains visible until the correct route tree can render.
+- Onboarding uses Inter fonts, semantic palette utilities, safe-area insets, and automatic light/dark styling. The official logo source is rendered with `expo-image` without modification.
+
 ## Vision
 
 Stow helps people save fleeting thoughts and useful material without forcing a
@@ -85,7 +99,7 @@ Dependency rule for the first slice:
 - Saving creates an `Unsorted`, active capture, dismisses the modal, and refreshes the Inbox.
 - Cancel or system back with unsaved content shows a discard confirmation.
 - An untouched draft closes immediately without confirmation.
-- Editing, classification changes, archive, delete, and archival are outside this slice.
+- Classification changes and archive remain outside this slice.
 - The UI must support automatic light/dark appearance and safe areas.
 
 ## Approved Empty Inbox v1
@@ -104,7 +118,7 @@ Dependency rule for the first slice:
 ## Approved Populated Inbox v1
 
 - **Header:** Continue using the existing large left-aligned `Inbox` header and its divider.
-- **List Style:** Flat editorial list. No card backgrounds, rounded capture containers, shadows, badges, icons, thumbnails, or controls.
+- **List Style:** Flat editorial list. No card backgrounds, rounded capture containers, shadows, or badges. Each valid row has only the approved pencil edit control; capture rows are not otherwise pressable.
 - **Row Content:**
   - **Capture Text:** Displayed first. Uses `text-foreground` semantic token, Inter Medium 500 (`font-sans-medium`), approximately 18sp (`text-lg`). Natural wrapping allowed up to a maximum of three visible lines. Trailing ellipsis (`numberOfLines={3}`, `ellipsizeMode="tail"`) when text exceeds three lines. Do not shrink text to fit.
   - **Metadata:** `Unsorted` displayed beneath capture text. Uses `text-foreground-muted` semantic token, Inter Regular 400 (`font-sans`), approximately 15–16sp (`text-base`). Visibly secondary with a small vertical gap beneath the capture.
@@ -118,12 +132,13 @@ Dependency rule for the first slice:
 
 ## Approved Composer v1
 
-**Header:**
+**Header (creation mode):**
 - Cancel left
 - `New capture` centered
 - Save right
 - Save disabled when neither trimmed text nor an image exists
 - Save enabled with text, images, or both
+- Edit mode uses the same composer with `Edit capture` as its centered title and a separate `Delete capture` action.
 
 **Editor:**
 - Large bounded `surface` editor on `background`
@@ -154,6 +169,31 @@ Dependency rule for the first slice:
 - Discard confirmation shows when user cancels or uses system back with unsaved content
 - An untouched draft closes immediately without confirmation
 - Confirmation modal includes: headline, supporting text, "Keep editing" and "Discard" buttons
+
+## Capture editing and deletion v1
+
+### Inbox
+
+- Every valid capture row has exactly one pencil edit control.
+- Use the existing Lucide icon system and semantic `accent` color so it adapts in light and dark mode.
+- The pencil is an accessible Pressable with a practical minimum 44dp touch target and `hitSlop`.
+- The pencil is positioned at the top-right of its capture row.
+- Capture text, metadata, thumbnails, reminders, separators, row heights, scrolling, header, and bottom action remain otherwise unchanged.
+- The capture row itself is not pressable. No delete control appears in the Inbox.
+
+### Editing
+
+- The pencil opens the existing composer in edit mode using an optional typed `id` route parameter; the composer UI is not duplicated.
+- Edit mode reads `Edit capture` and loads the selected capture’s text, images, and reminder. Existing stored images appear in the attachment rail without reprocessing.
+- Users may change text, add/remove images, and add/change/remove a reminder. The maximum five images and permanent-content invariant remain unchanged.
+- Save is enabled only when the edited capture is valid, changed, and not currently saving.
+- Cancel/system back asks for discard confirmation only when edit-mode changes exist; unchanged edits close immediately. Discarding preserves the original capture and permanent files while cleaning only new temporary files.
+
+### Deletion
+
+- `Delete capture` appears only inside edit mode and uses semantic danger styling. It is absent in creation mode and the Inbox.
+- Pressing it confirms with title `Delete capture?`, message `This permanently deletes the capture and its images.`, and `Cancel` / `Delete` actions.
+- Confirmed deletion permanently removes the capture, cascaded image records, permanent image files, and associated scheduled reminder where possible. No trash or archive behavior is introduced.
 
 ## Approved Reminder Sheet v1
 

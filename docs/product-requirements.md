@@ -74,18 +74,18 @@ Dependency rule for the first slice:
   justify a heavy abstraction. Record that reasoning in the AI development
   log when implementing.
 
-## Visible Inbox + New Capture (approved visible slice)
+## Visible Inbox + Composer (approved full slice)
 
 - The initial route is the active-capture Inbox.
 - The Inbox lists active captures newest-first.
 - An empty Inbox displays a helpful empty state.
-- “New capture” opens a dedicated Expo Router modal route.
-- The first modal supports text only.
-- Save is unavailable for empty or whitespace-only text.
+- "New capture" opens a dedicated Expo Router modal route with a full-featured composer.
+- The composer supports text with optional images, reminders, and draft management.
+- Save is unavailable when both text and images are empty.
 - Saving creates an `Unsorted`, active capture, dismisses the modal, and refreshes the Inbox.
-- Cancel or system back leaves without creating a capture.
-- Unsaved-draft retention and discard-confirmation behavior remain `TBD`; do not implement either now.
-- Editing, classification changes, archive, delete, reminders, images, and image compression are outside this slice.
+- Cancel or system back with unsaved content shows a discard confirmation.
+- An untouched draft closes immediately without confirmation.
+- Editing, classification changes, archive, delete, and archival are outside this slice.
 - The UI must support automatic light/dark appearance and safe areas.
 
 ## Approved Empty Inbox v1
@@ -115,6 +115,168 @@ Dependency rule for the first slice:
 - **Bottom Action:** Remains outside the list, above safe-area inset, exactly preserving the manually edited button text.
 - **Theming:** Automatic semantic light/dark styling.
 - **Implementation:** Uses React Native `FlatList` with `ItemSeparatorComponent` and variable row heights (no `getItemLayout`).
+
+## Approved Composer v1
+
+**Header:**
+- Cancel left
+- `New capture` centered
+- Save right
+- Save disabled when neither trimmed text nor an image exists
+- Save enabled with text, images, or both
+
+**Editor:**
+- Large bounded `surface` editor on `background`
+- Neutral `border-strong` boundary
+- Multiline input at the top
+- Placeholder exactly: `What do you want to remember?`
+- Android text aligned to the top
+- Text remains scrollable/editable
+- Keyboard avoidance works on Android and iOS
+
+**Attachment preview:**
+- Horizontal thumbnail rail directly above the internal toolbar divider
+- Restrained rounded thumbnails (approximately 104dp square)
+- Maximum five images
+- Each thumbnail has an accessible close/remove control
+- Thumbnails never overlap the input or toolbar
+
+**Toolbar:**
+- Bottom-left: bell icon plus an always-visible reminder label. It reads
+  `Set reminder` until a reminder is selected, then changes to the formatted
+  reminder date/time.
+- Bottom-right: separate Camera and Paperclip icon buttons
+- Reminder is visually separated from media actions
+- Use `accent` for the actions and `accent-soft` for icon-button surfaces
+- Use accessible Pressables with at least practical 44–48dp targets and meaningful labels
+
+**Draft management:**
+- Discard confirmation shows when user cancels or uses system back with unsaved content
+- An untouched draft closes immediately without confirmation
+- Confirmation modal includes: headline, supporting text, "Keep editing" and "Discard" buttons
+
+## Approved Reminder Sheet v1
+
+**Trigger:** Tapping `Set reminder` dismisses the keyboard, opens one React Native bottom-sheet-style modal, dims the composer, and does not navigate to a full-screen route.
+
+**Content:**
+- Title: `Set reminder`
+- Close control
+- Inline time control with hour and minute inputs plus AM/PM selection; date
+  selection remains native calendar selection for the MVP
+- Human-readable selected summary in 12-hour format (e.g., "Today, 6:00 PM" or
+  "14 Sep, 2:30 PM")
+- Cancel
+- Primary `Set reminder`
+- Remove reminder action when editing an existing reminder
+
+**Behavior:**
+- When a reminder is already selected: replace `Set reminder` in the composer with a concise local-time summary; tapping it reopens the sheet for editing
+- Use current date as minimum selectable date
+- A confirmed reminder must be in the future
+- Initialize a new selection to the next sensible future hour with the
+  corresponding AM/PM period
+- Use the locked semantic palette; do not copy colors from other sources
+
+**Platform-specific components:**
+- Android MVP: native calendar-style date selection from
+  `@expo/ui/jetpack-compose`, with a simple custom 12-hour hour/minute input
+  and AM/PM selection
+- iOS: native DatePicker and time controls from `@expo/ui/swift-ui` remain
+  future platform work
+
+## Approved Image Handling
+
+**Image acquisition:**
+- Camera opens the camera directly and adds one image at a time
+- Gallery may select multiple images up to the remaining capacity
+- Paperclip opens the system Files/document picker directly
+- Attachments accept image files only in this MVP
+- PDF and broader file support are deferred without requiring a toolbar redesign
+- Still images only, no video
+- No crop UI
+
+**Image limits:**
+- Maximum five images per capture
+
+**Image processing:**
+- Use the modern contextual Expo ImageManipulator API, not deprecated `manipulateAsync`
+- For every camera, gallery, or file image:
+  - Preserve aspect ratio
+  - Resize only when the longest edge exceeds `2048`
+  - Set only one resize dimension so aspect ratio is preserved
+  - Convert the processed result to JPEG
+  - Compression quality: approximately `0.82`
+  - Do not request or store Base64
+  - Do not request or persist EXIF metadata
+  - Do not retain a second permanent copy of the original
+  - Store only the processed image permanently
+
+**Storage:**
+- Picker/manipulator output is temporary
+- Use the modern File, Directory, and Paths API from `expo-file-system` to move/copy processed images into app-controlled document storage when the capture is saved
+- Temporary draft images are cleaned up when: the user removes an image, discards the draft, or saving fails before ownership transfers to the saved capture
+- Use unique collision-safe filenames; do not expose original external filenames as persistent identifiers
+- Handle `ImagePicker.getPendingResultAsync()` on Android so picker results are not silently lost if Android destroys and recreates the activity
+
+## Approved Inbox Concept B
+
+**Preserve:** Existing header, flat editorial list, separators, scrolling, safe areas, and protected bottom button.
+
+**Text-only capture:**
+- Existing full-width row remains visually unchanged
+- Capture text: maximum three lines, tail ellipsis
+- `Unsorted` beneath it
+
+**Text plus images:**
+- Show approximately 104dp square leading thumbnail
+- Text and metadata appear to its right
+- Metadata format: `Unsorted · 1 image` or correct plural count
+- Never display image count twice
+
+**Image-only capture:**
+- Do not invent a title
+- Show up to two leading thumbnails side by side
+- Metadata beneath: `Unsorted · 2 images` with correct singular/plural grammar
+
+**More than one image when only one preview is shown:**
+- First image is the thumbnail
+- Overlay `+N` for the remaining images
+- Use a restrained contrast scrim for legibility
+
+**Reminder metadata (all captures with reminders):**
+- First metadata line remains classification plus image count where applicable
+- Second compact metadata line contains: bell icon, reminder formatted as `14 Sep, 2:00 PM`
+- Both the bell and reminder date/time must use semantic `accent` purple
+- In dark mode, they automatically use the locked lighter dark-theme accent
+- Never place the bell alone
+- Do not make reminder metadata a badge, pill, or button
+
+**Implementation:**
+- Use `expo-image` for local thumbnails with cover behavior and accessible description
+- Do not add fixed item-height calculations or `getItemLayout`; rows remain variable height
+
+## Notifications and Reminders
+
+**Local reminders only:**
+- No push-token registration
+- No backend
+- No recurring reminders
+- No snooze
+- No multiple reminders per capture
+
+**Setup:**
+- Create a clearly named Android notification channel before requesting notification permission
+- Request notification permission only when the user confirms a reminder
+- If permission is denied, explain it clearly, do not attach a nonfunctional reminder, and still allow the capture to be saved without one
+
+**Scheduling:**
+- Schedule the local notification for the selected future date and time
+- Store the notification identifier with the capture
+- Notification content should work for text, image-only, and mixed captures
+- Include the capture ID in notification data for future navigation, but do not implement unapproved navigation behavior now
+- If scheduling fails, do not claim that a reminder exists
+- Clean up any newly scheduled notification if the save transaction subsequently fails
 
 ## Visual foundation
 

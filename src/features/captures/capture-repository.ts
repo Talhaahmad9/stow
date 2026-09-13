@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "expo-sqlite";
-import type { Capture, CaptureRow } from "./capture";
-import { mapDbRowToCapture } from "./capture";
+import type { Capture, CaptureImage, CaptureImageRow, CaptureRow } from "./capture";
+import { mapDbRowToCapture, mapDbImageRowToCaptureImage } from "./capture";
 
 /**
  * Insert a text-only capture. Trims input and rejects empty content.
@@ -36,12 +36,87 @@ export async function createTextCapture(
     throw new Error("failed-to-read-created-capture");
   }
 
-  return mapDbRowToCapture(row);
+  return mapDbRowToCapture(row, []);
 }
 
 /**
- * List only active captures ordered newest-first. Deterministic ordering uses id DESC
- * as a tiebreaker when timestamps match.
+ * Insert a capture with text and/or images, and optional reminder.
+ * At least one of text or images must be provided.
+ */
+export async function createCapture(
+  db: SQLiteDatabase,
+  inputText: string | null,
+  imageUris: Array<{ uri: string; width: number; height: number; mimeType: string }>,
+  reminderAt: number | null = null,
+  notificationId: string | null = null,
+): Promise<Capture> {
+  const text = inputText ? inputText.trim() : null;
+  const hasText = text && text.length > 0;
+  const hasImages = imageUris.length > 0;
+
+  if (!hasText && !hasImages) {
+    throw new Error("capture-empty");
+  }
+
+  const now = Date.now();
+
+  let createdRow: CaptureRow | null = null;
+  const images: CaptureImage[] = [];
+  await db.withExclusiveTransactionAsync(async (txn) => {
+    const result = await txn.runAsync(
+      `INSERT INTO captures (text, classification, workflow_state, reminder_at, notification_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      hasText ? text : null,
+      "unsorted",
+      "active",
+      reminderAt,
+      notificationId,
+      now,
+      now,
+    );
+    const captureId = result.lastInsertRowId;
+
+    for (let i = 0; i < imageUris.length; i++) {
+      const imageUri = imageUris[i];
+      const imageResult = await txn.runAsync(
+        `INSERT INTO capture_images (capture_id, uri, width, height, mime_type, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        captureId,
+        imageUri.uri,
+        imageUri.width,
+        imageUri.height,
+        imageUri.mimeType,
+        i,
+        now,
+      );
+      images.push({
+        id: imageResult.lastInsertRowId,
+        captureId,
+        uri: imageUri.uri,
+        width: imageUri.width,
+        height: imageUri.height,
+        mimeType: imageUri.mimeType,
+        position: i,
+        createdAt: now,
+      });
+    }
+
+    createdRow = await txn.getFirstAsync<CaptureRow>(
+      "SELECT * FROM captures WHERE id = ?",
+      captureId,
+    );
+    if (!createdRow) {
+      throw new Error("failed-to-read-created-capture");
+    }
+  });
+
+  if (!createdRow) {
+    throw new Error("failed-to-read-created-capture");
+  }
+
+  return mapDbRowToCapture(createdRow, images);
+}
+
+/**
+ * List only active captures ordered newest-first, including their images.
  */
 export async function listActiveCaptures(
   db: SQLiteDatabase,
@@ -50,10 +125,41 @@ export async function listActiveCaptures(
     `SELECT * FROM captures WHERE workflow_state = ? ORDER BY created_at DESC, id DESC`,
     "active",
   );
-  return rows.map(mapDbRowToCapture);
+
+  const captures: Capture[] = [];
+  for (const row of rows) {
+    const imageRows = await db.getAllAsync<CaptureImageRow>(
+      `SELECT * FROM capture_images WHERE capture_id = ? ORDER BY position ASC`,
+      row.id,
+    );
+    const images = imageRows.map(mapDbImageRowToCaptureImage);
+    captures.push(mapDbRowToCapture(row, images));
+  }
+
+  return captures;
+}
+
+/**
+ * Update capture reminder and notification ID.
+ */
+export async function updateCaptureReminder(
+  db: SQLiteDatabase,
+  captureId: number,
+  reminderAt: number | null,
+  notificationId: string | null,
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE captures SET reminder_at = ?, notification_id = ?, updated_at = ? WHERE id = ?`,
+    reminderAt,
+    notificationId,
+    Date.now(),
+    captureId,
+  );
 }
 
 export default {
   createTextCapture,
+  createCapture,
   listActiveCaptures,
+  updateCaptureReminder,
 };

@@ -1,7 +1,7 @@
 import type { SQLiteDatabase } from "expo-sqlite";
 
 export const DATABASE_NAME = "stow.db";
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 export async function migrateIfNeeded(db: SQLiteDatabase): Promise<void> {
   // Enable recommended PRAGMAs
@@ -34,6 +34,32 @@ export async function migrateIfNeeded(db: SQLiteDatabase): Promise<void> {
 
       CREATE INDEX IF NOT EXISTS captures_workflow_created_idx
         ON captures (workflow_state, created_at);
+    `);
+
+    current = 1;
+  }
+
+  // Apply version 2 migration if needed
+  if (current === 1) {
+    await db.execAsync(`
+      ALTER TABLE captures ADD COLUMN reminder_at INTEGER NULL;
+      ALTER TABLE captures ADD COLUMN notification_id TEXT NULL;
+
+      CREATE TABLE IF NOT EXISTS capture_images (
+        id INTEGER PRIMARY KEY NOT NULL,
+        capture_id INTEGER NOT NULL,
+        uri TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        mime_type TEXT NOT NULL DEFAULT 'image/jpeg',
+        position INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        FOREIGN KEY (capture_id) REFERENCES captures (id) ON DELETE CASCADE,
+        UNIQUE (capture_id, position)
+      );
+
+      CREATE INDEX IF NOT EXISTS capture_images_capture_idx
+        ON capture_images (capture_id);
     `);
 
     // Mark migration applied

@@ -15,7 +15,10 @@
         "foregroundImage": "./assets/images/stow-adaptive-foreground.png",
         "monochromeImage": "./assets/images/stow-adaptive-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.SCHEDULE_EXACT_ALARM"
+      ]
     },
     "web": {
       "output": "static",
@@ -34,6 +37,18 @@
             "backgroundColor": "#0B1020",
             "image": "./assets/images/stow-splash-dark.png"
           }
+        }
+      ],
+      [
+        "expo-notifications",
+        {}
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos to add them to captures.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera to capture images.",
+          "microphonePermission": false
         }
       ],
       "expo-sqlite"

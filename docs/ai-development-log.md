@@ -1,5 +1,176 @@
 # AI Development Log
 
+### 2026-09-14 — Final reminder and attachment reliability correction
+
+- Removed draft thumbnails immediately on attachment removal, while temporary
+  file cleanup continues independently outside the React state updater.
+- Exhaustively handled every post-commit reminder scheduling result; permission
+  and development-build failures now leave the saved capture without reminder
+  metadata and report that honestly. Committed image files are never removed.
+- Replaced two corrupted comment dash sequences with plain hyphens.
+
+### 2026-09-14 — Capture persistence reliability correction
+
+- Capture and image inserts now use one Expo SQLite exclusive transaction.
+- Pre-commit image files are compensated on processing or database failure;
+  after commit, permanent files belong to the saved capture and are not removed
+  for reminder failures.
+- Successful notification scheduling is canceled if reminder metadata cannot be
+  persisted. Expo Go now reports that no reminder was added when a development
+  build is required.
+- Temporary cache files are cleaned when removed and after successful commit;
+  Inbox image metadata now includes spacing around the middle dot.
+- The product owner physically verified the approved Android 12-hour AM/PM
+  picker on 2026-09-14. Notification delivery in a development build remains
+  unverified.
+
+### 2026-09-13 — Android picker responsiveness correction
+
+- **Implementation correction:** The Compose/SwiftUI icon bridge was removed
+  from React Native `Pressable`s. Toolbar icons now use Lucide through
+  `react-native-svg`.
+- **Launch correction:** Media launch locking now uses a ref, avoiding a
+  pre-launch render. Pending camera-result recovery runs once on screen mount
+  instead of during the immediate camera press path.
+- **Verification status:** Physical one-tap verification remains pending until
+  the Android checklist is tested.
+- **Reminder time presentation:** The Android time control changed from the
+  Material clock-face picker to its compact 24-hour input variant.
+- **Reminder time correction:** The documented input variant does not affect
+  the installed Android inline time implementation; the circular Material
+  clock was replaced with validated React Native hour/minute inputs and AM/PM
+  selection. The earlier 24-hour input was superseded by the approved AM/PM
+  design.
+
+### 2026-09-13 — Earlier picker responsiveness correction
+
+- **Correction:** Removed the earlier `Keyboard.dismiss()` calls immediately
+  before opening the camera and Files picker. `Keyboard.dismiss()` initiates a
+  separate native keyboard transition, while the camera and document picker
+  launch separate Android activities; starting both transitions together was
+  unnecessary and may have contributed to perceived unresponsiveness.
+- **Error handling:** Document-picker exceptions are no longer converted into
+  cancellation. Camera and Files launch failures are logged with their real
+  development error and shown to the user with short non-technical alerts.
+  Cancellation remains a normal `null` result, and the acquisition guard is
+  reset in `finally`.
+- **Touch target:** Added invisible `hitSlop={8}` to the reminder, camera, and
+  attachment controls without changing their visual layout, icon size, or
+  single-operation guard.
+- **Verification:** The requested TypeScript, whitespace, status, and focused
+  diff checks are recorded for this correction after implementation. Physical
+  Android testing is still required; responsiveness is not claimed fixed until
+  the specified keyboard-open, cancellation, and rapid-tap checklist is
+  completed. Any Alert or terminal error observed during that test should be
+  recorded verbatim.
+
+### 2026-09-13 — Composer toolbar correction
+
+- **Cause of the missing reminder label:** `composer-toolbar.tsx` rendered its
+  label only when `reminderAt` was non-null, so the bell had no visible
+  `Set reminder` text in the default state.
+- **Cause of unreliable camera, attachment, and reminder taps:** the native
+  icon bridge rendered views inside the surrounding React Native controls,
+  creating a mixed interaction boundary. The toolbar now uses decorative
+  Lucide SVG icons so the surrounding `Pressable` owns the interaction.
+- **Attachment decision:** the paperclip now launches the system Files/document
+  picker directly with `type: "image/*"` and
+  `copyToCacheDirectory: true`; the intermediate Gallery/Files choice was
+  removed. Camera and document-picker handlers launch directly while the
+  existing acquisition guard prevents duplicate picker opens.
+- **Verification performed:** TypeScript was checked with `npx tsc --noEmit`;
+  whitespace was checked with `git diff --check`; repository searches confirmed
+  the reminder label is unconditional, the media-choice component has no
+  references, the paperclip is wired directly to the document picker, native
+  icon content uses `pointerEvents="none"`, and the protected Inbox CTA is
+  unchanged. Dependency manifests and the lockfile were not changed by this
+  correction.
+- **Physical-device confirmation still required:** Android Expo Go checks for
+  the visible label, single-tap reminder/camera/Files behavior, image-only
+  Files results, cancellation, image preview insertion, and rapid-tap
+  duplicate-picker prevention. No device behavior is claimed as verified here.
+
+### 2026-09-13 — Approved Composer/Media/Reminder Vertical Slice (corrected)
+
+- **Date:** 2026-09-13
+- **Milestone:** Implement complete media capture, image processing, draft management, and local reminders in the New Capture composer.
+- **Requested scope:** Full-featured text and image composer with image processing, durable storage, SQLite integration, local reminders, and updated Inbox display (Concept B).
+- **Actual files changed (first pass, then corrected same day):**
+  - Database: `src/data/database.ts` (migration v1→v2, image table, reminder fields)
+  - Domain types: `src/features/captures/capture.ts` (image types, reminder fields)
+  - Repository: `src/features/captures/capture-repository.ts` (create capture with images, list with images)
+  - New modules: `src/features/images/image-processor.ts`, `src/features/images/image-acquisition.ts`, `src/features/notifications/notification-service.ts`, `src/features/reminders/reminder-utils.ts` (added in correction), `src/hooks/useDraftAttachments.ts`
+  - Composer components: `src/components/composer/composer-toolbar.tsx`, `src/components/composer/attachment-preview-rail.tsx`, `src/components/composer/reminder-sheet.tsx`, `src/components/composer/media-picker-choice.tsx`
+  - New UI component: `src/components/ui/stow-icon.tsx` (added in correction)
+  - Routes: `src/app/capture.tsx`, `src/app/index.tsx`
+  - Config: `app.json`
+  - Documentation: `docs/product-requirements.md`, `docs/ai-development-log.md`
+- **Dependencies:** `expo-image-picker@~57.0.17`, `expo-image-manipulator@~57.0.17`, `expo-file-system@~57.0.7`, `expo-document-picker@~57.0.2`, and `expo-notifications@~57.0.18`
+- **Mistakes and corrections (first pass, corrected in second pass same day):**
+  - **Expo Go import crash (root cause):** `notification-service.ts` had a top-level `import * as Notifications from "expo-notifications"` and called `Notifications.setNotificationHandler()` at module scope. Expo SDK 57 on Android Expo Go crashes during module evaluation when `expo-notifications` is statically imported. Because `capture.tsx` and `index.tsx` both imported from `notification-service.ts` (directly or transitively through `reminder-sheet.tsx`), neither route could be evaluated. The Expo Router then reported "missing default export" — a cascading error, not a real missing export.
+  - **Fix:** Pure date utilities (`getDefaultReminderTime`, `formatReminderTime`) moved to a new `src/features/reminders/reminder-utils.ts` with no expo-notifications dependency. `notification-service.ts` now uses `isRunningInExpoGo()` from `expo` and dynamically imports `expo-notifications` only when confirmed not in Expo Go. Handler and channel initialization is lazy and idempotent.
+  - **Expo Go reminder behavior:** In Expo Go, tapping "Set reminder" opens the sheet for visual testing, but confirming shows an honest alert that notification delivery requires a development build. No fake notification ID is stored. The capture can still be saved without a reminder.
+  - **Fake capture ID 0:** First pass called `scheduleReminder(0, ...)` before capture creation. Corrected to schedule the notification only after `createCapture()` returns the real capture ID, then persist the notification ID via `updateCaptureReminder()`.
+  - **Placeholder calendar:** First pass used manual +/- hour and minute incrementers with a "Date selection coming in next iteration" label. Replaced with `DateTimePicker` from `@expo/ui/jetpack-compose` for both date and time selection on Android.
+  - **Emoji icons:** First pass used emoji (bell, camera, paperclip) as toolbar icons. Replaced with a platform-aware native icon component.
+  - **Render-time BackHandler:** First pass registered the BackHandler inside a `useState` initializer (render-time side effect). Replaced with a `useFocusEffect` that always removes the subscription on blur/unmount and reads current draft state via a ref.
+  - **`placeholderTextColor="var(--foreground-muted)"`:** CSS variable strings cannot be used as React Native native color props. Replaced with `colors["foreground-muted"]` from `useCssVariables()`, which returns the correct hex value for the current theme.
+  - **`active:bg-danger-pressed`:** Not a locked semantic token. Replaced with `active:opacity-80`.
+  - **Missing asset `notification-sound.wav`:** First pass referenced `./assets/notification-sound.wav` in `app.json`. The file does not exist. Removed the custom sound declaration; default system notification sound is used.
+  - **`microphonePermission` missing:** Added `"microphonePermission": false` to the `expo-image-picker` plugin config. Stow captures still images and must not request audio-recording permission.
+  - **Deprecated `manipulateAsync`:** First pass used `ImageManipulator.manipulateAsync()` which is deprecated in SDK 57. Replaced with the modern contextual API: `ImageManipulator.manipulate(source)` → `.resize(...)` → `.renderAsync()` → `.saveAsync({...})`.
+  - **Legacy FileSystem API:** First pass mixed modern `Paths` with legacy functional calls (`copyAsync`, `moveAsync`, `deleteAsync`, `getInfoAsync`, `makeDirectoryAsync`). In SDK 57, the legacy functions must be imported from `expo-file-system/legacy`; importing them from `expo-file-system` directly throws at runtime. Replaced throughout with the modern OO API (`File`, `Directory`, `Paths`).
+  - **Backdrop dismissal bug:** First pass put `onTouchEnd={onDismiss}` on the outer reminder sheet wrapper, which caused the sheet to dismiss when the user interacted with pickers inside it. Fixed by using a separate `Pressable` backdrop layer with absolute positioning, leaving the sheet `View` with `pointerEvents="box-none"`.
+  - **Sheet state not resetting:** First pass only reset state when `currentReminder` changed; the sheet could show stale state when reopened. Corrected to reset to the initial date on every open by keying the reset on `visible`.
+  - **Notification trigger type:** First pass used `SchedulableTriggerInputTypes.TIME_INTERVAL` (seconds from now). Replaced with `SchedulableTriggerInputTypes.DATE` with a `Date` object for accurate one-time future scheduling per SDK 57 docs.
+  - **`SCHEDULE_EXACT_ALARM`:** Retained in `app.json`. The `DateTriggerInput` type schedules exact alarms on Android; `SCHEDULE_EXACT_ALARM` is required on Android 12+ for exact delivery. Affects standalone and development binaries; Expo Go host app already holds this permission.
+  - **Atomic failure rollback:** First pass left orphan image files on disk if `createCapture` failed after some images had been stored. Corrected: stored URIs are collected and deleted on any error before the save transaction completes.
+  - **Reminder lifecycle corrected:** Draft reminder is now just a timestamp in composer state. No notification is scheduled until after `createCapture()` returns the real capture ID. If notification scheduling subsequently fails, the capture is kept and reminder fields are cleared so the Inbox never shows a false reminder.
+- **Decisions and reasoning:**
+  - Database schema: Separate `capture_images` table with foreign key `ON DELETE CASCADE` preserves normalization and ensures image metadata is cleaned up with the capture
+  - Image processing: Modern contextual API chains operations before a single render call; quality 0.82 balances size and visual quality; JPEG throughout; no EXIF, no base64
+  - File storage: Modern OO FileSystem API (`File`, `Directory`, `Paths`) throughout; collision-safe filenames; temp files cleaned on remove, discard, or failure; permanent files not deleted on success
+  - `isRunningInExpoGo()` from `expo` package is the documented supported API for capability guarding
+  - `formatReminderTime` and `getDefaultReminderTime` in a standalone module so UI components have no notifications dependency
+  - `useCssVariables` hook provides hex values for native props (notification channel `lightColor`, icon `tint`/`color`) without duplicating palette throughout components
+- **Documentation consulted:** Expo SDK 57 (ImageManipulator contextual API, FileSystem OO API, ImagePicker, DocumentPicker, Notifications trigger types and channel setup), Expo UI DateTimePicker props, React Native 0.86 BackHandler, and useFocusEffect
+- **Verification (after corrections):**
+  - `npx tsc --noEmit` passed
+  - `git diff --check` passed (CRLF warnings only, pre-existing)
+  - No static `expo-notifications` imports outside `notification-service.ts`
+  - No `captureId: 0` in notification scheduling code
+  - No `manipulateAsync`
+  - No `notification-sound.wav`
+  - No `danger-pressed`
+  - No `placeholderTextColor="var(...)"`
+  - No placeholder calendar text
+  - No emoji icons in source
+  - No render-time BackHandler registration
+  - Protected `+ New capture` Text block byte-for-byte unchanged
+  - Both route files have valid `export default` components
+- **Remaining unverified — physical Android Expo Go device checks:**
+  - Composer loads without route-export or ErrorBoundary warnings
+  - Text capture saves and appears in Inbox (basic regression)
+  - Camera permission request and photo capture flow
+  - Gallery permission and multiple image selection
+  - Document picker file selection
+  - Attachment rail thumbnails render correctly
+  - Remove-image closes correctly and thumbnail disappears
+  - Discard confirmation triggers on Cancel and hardware back when draft has content
+  - Untouched draft closes without confirmation
+  - Reminder sheet opens and closes without dismissing on internal interaction
+  - Reminder time summary shows in accent purple in toolbar and Inbox
+  - Expo Go reminder alert appears with honest explanation (no fake schedule)
+  - Image-only capture saves and renders in Inbox
+  - Text + images capture renders with thumbnail
+  - Separator and +N overlay on multi-image captures
+  - Dark-mode and light-mode color correctness throughout composer
+- **Remaining unverified — development build only:**
+  - Notification permission request fires when user confirms reminder
+  - Notification is delivered at the scheduled time
+  - Notification ID is persisted and cancelable
+  - `SCHEDULE_EXACT_ALARM` behavior on Android 12+ devices
+
 ### 2026-09-12 — Locked Populated Inbox v1
 
 - **Date:** 2026-09-12
